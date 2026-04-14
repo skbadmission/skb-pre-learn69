@@ -1,0 +1,2484 @@
+<!doctype html>
+<html lang="th" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบเช็คชื่อนักเรียน การเรียนปรับพื้นฐาน - โรงเรียนชลบุรี "สุขบท"</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    window.tailwind = window.tailwind || {};
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#1a2744',
+            royal: '#2d4a7a',
+            gold: '#d4a843'
+          },
+          fontFamily: {
+            kanit: ['Kanit', 'sans-serif'],
+            sarabun: ['Sarabun', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+html,body{height:100%;margin:0;font-family:'Sarabun',sans-serif}
+.app-wrapper{height:100%;width:100%;overflow:auto;background:#f0f2f5}
+.sidebar{background:linear-gradient(180deg,#1a2744 0%,#2d4a7a 100%)}
+.card-hover{transition:all .2s}
+.card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.1)}
+.status-present{background:#22c55e;color:#fff}
+.status-absent{background:#ef4444;color:#fff}
+.status-leave{background:#eab308;color:#fff}
+.status-none{background:#e5e7eb;color:#6b7280}
+.fade-in{animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.toast{position:fixed;top:20px;right:20px;z-index:9999;padding:12px 24px;border-radius:8px;color:#fff;font-weight:500;animation:slideIn .3s ease}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center}
+.progress-bar{transition:width .3s ease}
+input:focus,select:focus,textarea:focus{outline:none;ring:2px;border-color:#2d4a7a}
+.pie-segment{transition:all .3s ease}
+.pie-segment:hover{opacity:.8;transform:scale(1.02)}
+.password-field{position:relative}
+.password-field input{padding-right:3.25rem}
+.password-toggle{position:absolute;right:.75rem;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;color:#64748b;background:transparent;border:none;cursor:pointer}
+.password-toggle:hover{color:#1a2744}
+.mobile-topbar{display:none}
+.sidebar-backdrop{display:none}
+@media (max-width: 1024px){
+  .mobile-topbar{display:flex;position:sticky;top:0;z-index:60;align-items:center;justify-content:space-between;padding:1rem;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid rgba(148,163,184,.2)}
+  #mainApp{display:block}
+  #mainContent{min-height:100vh}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(82vw,320px);transform:translateX(-100%);transition:transform .25s ease;z-index:70;box-shadow:0 20px 40px rgba(15,23,42,.28)}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-backdrop.open{display:block;position:fixed;inset:0;background:rgba(15,23,42,.42);z-index:65}
+}
+@media (max-width: 768px){
+  .app-wrapper{overflow-x:hidden}
+  #loginScreen{padding:1rem}
+  #loginScreen .max-w-md{max-width:none;margin:0}
+  .page-content{padding:1rem !important}
+  .toast{left:12px;right:12px;top:12px;padding:12px 16px}
+  table{min-width:640px}
+}
+</style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div class="app-wrapper" id="app"><!-- LOGIN SCREEN -->
+   <div id="loginScreen" class="h-full w-full flex items-center justify-center" style="background:linear-gradient(135deg,#1a2744 0%,#2d4a7a 50%,#4a7c6f 100%)">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4 fade-in">
+     <div class="text-center mb-6">
+       <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-white shadow-lg ring-4 ring-white/40 overflow-hidden flex items-center justify-center">
+        <img src="https://lh3.googleusercontent.com/d/1ULXHEVlWOzUaN6XpXNVczKbHPPgzoOc7" alt="School logo" class="w-full h-full object-cover">
+       </div>
+      <h1 class="font-kanit text-2xl font-bold text-navy" id="loginSchoolName">โรงเรียนชลบุรี "สุขบท"</h1>
+      <p class="text-gray-500 font-sarabun mt-1" id="loginSemester">ระบบเช็คชื่อนักเรียน การเรียนปรับพื้นฐาน ภาคเรียนที่ 1/2569</p>
+     </div>
+     <div class="space-y-4">
+      <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ชื่อผู้ใช้</label> <input id="loginUser" type="text" class="w-full px-4 py-3 border border-gray-300 rounded-lg font-sarabun focus:border-royal" placeholder="username">
+      </div>
+      <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">รหัสผ่าน</label> <input id="loginPass" type="password" class="w-full px-4 py-3 border border-gray-300 rounded-lg font-sarabun focus:border-royal" placeholder="password">
+      </div>
+      <div id="loginError" class="text-red-500 text-sm hidden font-sarabun"></div><button onclick="handleLogin()" class="w-full py-3 bg-navy text-white rounded-lg font-kanit font-medium text-lg hover:bg-royal transition">เข้าสู่ระบบ</button>
+     </div>
+    </div>
+   </div><!-- MAIN APP -->
+   <div id="mainApp" class="hidden h-full w-full flex"><!-- Sidebar -->
+    <aside class="sidebar w-64 min-h-full flex-shrink-0 text-white flex flex-col" id="sidebarEl">
+     <div class="p-4 border-b border-white/10">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-white/10 overflow-hidden flex items-center justify-center"><img src="https://lh3.googleusercontent.com/d/1ULXHEVlWOzUaN6XpXNVczKbHPPgzoOc7" alt="School logo" class="w-full h-full object-cover">
+        </div>
+       <div>
+        <h2 class="font-kanit font-semibold text-sm leading-tight" id="sideSchoolName">ชลบุรี "สุขบท"</h2>
+        <p class="text-xs text-white/60 font-sarabun" id="sideSemester">1/2569</p>
+       </div>
+      </div>
+     </div>
+     <div class="p-3 border-b border-white/10">
+      <div class="bg-white/10 rounded-lg p-3">
+       <p class="text-xs text-white/60 font-sarabun">เข้าสู่ระบบเป็น</p>
+       <p class="font-kanit font-medium text-sm" id="currentUserName">Admin</p>
+       <p class="text-xs text-gold" id="currentUserRole">ผู้ดูแลระบบ</p>
+      </div>
+     </div>
+     <nav class="flex-1 p-3 space-y-1" id="sidebarNav"><button onclick="navigateTo('dashboard')" data-nav="dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left"> <i data-lucide="layout-dashboard" class="w-4 h-4"></i> แดชบอร์ด </button> <button onclick="navigateTo('attendance')" data-nav="attendance" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left"> <i data-lucide="clipboard-check" class="w-4 h-4"></i> เช็คชื่อ </button> <button onclick="navigateTo('students')" data-nav="students" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left admin-only"> <i data-lucide="users" class="w-4 h-4"></i> นักเรียน </button> <button onclick="navigateTo('teachers')" data-nav="teachers" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left admin-only"> <i data-lucide="user-check" class="w-4 h-4"></i> ครู </button> <button onclick="navigateTo('reports')" data-nav="reports" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left"> <i data-lucide="bar-chart-3" class="w-4 h-4"></i> รายงาน </button>
+     </nav>
+     <div class="p-3"><button onclick="handleLogout()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-red-500/20 transition text-red-300"> <i data-lucide="log-out" class="w-4 h-4"></i> ออกจากระบบ </button>
+     </div>
+    </aside><!-- Content -->
+    <main class="flex-1 overflow-auto bg-gray-50" id="mainContent"><!-- DASHBOARD PAGE -->
+     <div id="page-dashboard" class="page-content p-6 fade-in">
+      <div class="mb-6">
+       <h1 class="font-kanit text-2xl font-bold text-navy">แดชบอร์ด</h1>
+       <p class="text-gray-500 font-sarabun">ภาพรวมการเข้าเรียนปรับพื้นฐาน 5-13 พ.ค. 2569</p>
+      </div><!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+       <div class="bg-white rounded-xl p-5 shadow-sm card-hover border-l-4 border-royal">
+        <div class="flex items-center justify-between">
+         <div>
+          <p class="text-sm text-gray-500 font-sarabun">นักเรียนทั้งหมด</p>
+          <p class="text-2xl font-bold font-kanit text-navy" id="statTotalStudents">0</p>
+         </div>
+         <div class="w-10 h-10 rounded-lg bg-royal/10 flex items-center justify-center">
+          <i data-lucide="users" class="w-5 h-5 text-royal"></i>
+         </div>
+        </div>
+       </div>
+       <div class="bg-white rounded-xl p-5 shadow-sm card-hover border-l-4 border-green-500">
+        <div class="flex items-center justify-between">
+         <div>
+          <p class="text-sm text-gray-500 font-sarabun">มาเรียนวันนี้</p>
+          <p class="text-2xl font-bold font-kanit text-green-600" id="statPresent">0</p>
+         </div>
+         <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+          <i data-lucide="check-circle" class="w-5 h-5 text-green-500"></i>
+         </div>
+        </div>
+       </div>
+       <div class="bg-white rounded-xl p-5 shadow-sm card-hover border-l-4 border-red-500">
+        <div class="flex items-center justify-between">
+         <div>
+          <p class="text-sm text-gray-500 font-sarabun">ไม่มาเรียน</p>
+          <p class="text-2xl font-bold font-kanit text-red-600" id="statAbsent">0</p>
+         </div>
+         <div class="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center">
+          <i data-lucide="x-circle" class="w-5 h-5 text-red-500"></i>
+         </div>
+        </div>
+       </div>
+       <div class="bg-white rounded-xl p-5 shadow-sm card-hover border-l-4 border-yellow-500">
+        <div class="flex items-center justify-between">
+         <div>
+          <p class="text-sm text-gray-500 font-sarabun">ลา</p>
+          <p class="text-2xl font-bold font-kanit text-yellow-600" id="statLeave">0</p>
+         </div>
+         <div class="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
+          <i data-lucide="alert-circle" class="w-5 h-5 text-yellow-500"></i>
+         </div>
+        </div>
+       </div>
+      </div><!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+       <div class="bg-white rounded-xl p-6 shadow-sm">
+        <h3 class="font-kanit font-semibold text-navy mb-4">สัดส่วนการเข้าเรียนวันนี้</h3>
+        <div class="flex items-center justify-center">
+         <svg id="pieChart" width="250" height="250" viewbox="0 0 250 250"></svg>
+        </div>
+        <div class="flex justify-center gap-6 mt-4">
+         <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-green-500"></div><span class="text-sm font-sarabun">มา</span>
+         </div>
+         <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-red-500"></div><span class="text-sm font-sarabun">ไม่มา</span>
+         </div>
+         <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-yellow-400"></div><span class="text-sm font-sarabun">ลา</span>
+         </div>
+        </div>
+       </div>
+       <div class="bg-white rounded-xl p-6 shadow-sm">
+        <h3 class="font-kanit font-semibold text-navy mb-4">สถิติรายวัน</h3>
+        <div id="barChart" class="space-y-3"></div>
+       </div>
+      </div><!-- Room Summary -->
+      <div class="bg-white rounded-xl p-6 shadow-sm">
+       <h3 class="font-kanit font-semibold text-navy mb-4">สรุปตามห้องเรียน</h3>
+       <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+         <thead>
+          <tr class="bg-gray-50">
+           <th class="px-4 py-2 text-left">ห้อง</th>
+           <th class="px-4 py-2 text-center">ทั้งหมด</th>
+           <th class="px-4 py-2 text-center text-green-600">มา</th>
+           <th class="px-4 py-2 text-center text-red-600">ไม่มา</th>
+           <th class="px-4 py-2 text-center text-yellow-600">ลา</th>
+           <th class="px-4 py-2 text-center">%มา</th>
+          </tr>
+         </thead>
+         <tbody id="roomSummaryBody"></tbody>
+        </table>
+       </div>
+      </div>
+     </div><!-- ATTENDANCE PAGE -->
+     <div id="page-attendance" class="page-content hidden p-6 fade-in">
+      <div class="mb-6">
+       <h1 class="font-kanit text-2xl font-bold text-navy">เช็คชื่อนักเรียน</h1>
+      </div>
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">วันที่</label> <select id="attDate" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="loadAttendance()"></select>
+        </div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ระดับชั้น</label> <select id="attLevel" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="updateRoomOptions();loadAttendance()"> <option value="ม.1">ม.1</option><option value="ม.4">ม.4</option> </select>
+        </div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ห้อง</label> <select id="attRoom" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="loadAttendance()"></select>
+        </div>
+        <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">คาบเรียน</label> <select id="attPeriod" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="loadAttendance()"> <option value="assembly">เข้าแถว 7:40-8:30</option> <option value="p1">คาบ 1 (08:30-09:30)</option> <option value="p2">คาบ 2 (09:30-10:30)</option> <option value="p3">คาบ 3 (10:30-11:30)</option> <option value="p4">คาบ 4 (11:30-12:30) พักกลางวัน</option> <option value="p5">คาบ 5 (12:30-13:30)</option> <option value="p6">คาบ 6 (13:30-14:30)</option> <option value="p7">คาบ 7 (14:30-15:30) กิจกรรม</option> </select>
+        </div>
+       </div>
+      </div><!-- Quick Actions -->
+      <div class="flex gap-2 mb-4 flex-wrap"><button onclick="markAll('present')" class="px-4 py-2 bg-green-500 text-white rounded-lg font-sarabun text-sm hover:bg-green-600 transition flex items-center gap-1"><i data-lucide="check" class="w-4 h-4"></i> มาทั้งหมด</button> <button onclick="markAll('absent')" class="px-4 py-2 bg-red-500 text-white rounded-lg font-sarabun text-sm hover:bg-red-600 transition flex items-center gap-1"><i data-lucide="x" class="w-4 h-4"></i> ไม่มาทั้งหมด</button> <button onclick="saveAttendance()" class="px-4 py-2 bg-navy text-white rounded-lg font-sarabun text-sm hover:bg-royal transition flex items-center gap-1" id="saveAttBtn"><i data-lucide="save" class="w-4 h-4"></i> บันทึก</button>
+      </div><!-- Attendance Table -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+       <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+         <thead class="bg-navy text-white">
+          <tr>
+           <th class="px-4 py-3 text-left">เลขที่</th>
+           <th class="px-4 py-3 text-left">ชื่อ-สกุล</th>
+           <th class="px-4 py-3 text-center">สถานะ</th>
+          </tr>
+         </thead>
+         <tbody id="attendanceBody"></tbody>
+        </table>
+       </div>
+       <div id="attEmpty" class="hidden p-8 text-center text-gray-400 font-sarabun">
+        ไม่พบนักเรียนในห้องนี้
+       </div>
+      </div>
+     </div><!-- STUDENTS PAGE -->
+     <div id="page-students" class="page-content hidden p-6 fade-in">
+      <div class="flex items-center justify-between mb-6">
+       <div>
+        <h1 class="font-kanit text-2xl font-bold text-navy">จัดการนักเรียน</h1>
+        <p class="text-gray-500 font-sarabun text-sm">อัพโหลดและจัดการข้อมูลนักเรียน</p>
+       </div>
+      </div><!-- Upload Section -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+       <h3 class="font-kanit font-semibold text-navy mb-2">อัพโหลดข้อมูลนักเรียน (CSV)</h3>
+       <p class="text-sm text-gray-500 font-sarabun mb-1">รูปแบบ: เลขที่,ชื่อ,นามสกุล,ระดับชั้น,ห้อง</p>
+       <p class="text-xs text-orange-500 font-sarabun mb-3">⚠️ อัพโหลดได้ครั้งละไม่เกิน 40 คน</p><textarea id="studentCsv" rows="5" class="w-full px-4 py-3 border rounded-lg font-sarabun text-sm mb-2" placeholder="1,สมชาย,ใจดี,ม.1,1
+2,สมหญิง,รักเรียน,ม.1,1"></textarea>
+       <div id="studentUploadProgress" class="hidden mb-3">
+        <div class="w-full bg-gray-200 rounded-full h-3">
+         <div id="studentProgressBar" class="bg-royal h-3 rounded-full progress-bar" style="width:0%"></div>
+        </div>
+        <p class="text-sm text-gray-500 font-sarabun mt-1" id="studentProgressText">0%</p>
+       </div><button onclick="uploadStudents()" class="px-6 py-2 bg-royal text-white rounded-lg font-sarabun hover:bg-navy transition" id="uploadStudentBtn">อัพโหลด</button>
+      </div><!-- Filter -->
+      <div class="flex gap-3 mb-4 flex-wrap"><select id="filterStudentLevel" class="px-3 py-2 border rounded-lg font-sarabun text-sm" onchange="renderStudentList()"> <option value="">ทุกระดับชั้น</option><option value="ม.1">ม.1</option><option value="ม.4">ม.4</option> </select> <select id="filterStudentRoom" class="px-3 py-2 border rounded-lg font-sarabun text-sm" onchange="renderStudentList()"> <option value="">ทุกห้อง</option> </select> <input type="text" id="searchStudent" class="px-3 py-2 border rounded-lg font-sarabun text-sm" placeholder="ค้นหาชื่อ..." oninput="renderStudentList()">
+      </div><!-- Student List -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+       <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+         <thead class="bg-gray-50">
+          <tr>
+           <th class="px-4 py-3 text-left">เลขที่</th>
+           <th class="px-4 py-3 text-left">ชื่อ</th>
+           <th class="px-4 py-3 text-left">นามสกุล</th>
+           <th class="px-4 py-3 text-center">ชั้น</th>
+           <th class="px-4 py-3 text-center">ห้อง</th>
+           <th class="px-4 py-3 text-center">จัดการ</th>
+          </tr>
+         </thead>
+         <tbody id="studentListBody"></tbody>
+        </table>
+       </div>
+       <div id="studentEmpty" class="p-8 text-center text-gray-400 font-sarabun">
+        ยังไม่มีข้อมูลนักเรียน
+       </div>
+      </div>
+     </div><!-- TEACHERS PAGE -->
+     <div id="page-teachers" class="page-content hidden p-6 fade-in">
+      <div class="flex items-center justify-between mb-6">
+       <div>
+        <h1 class="font-kanit text-2xl font-bold text-navy">จัดการครู</h1>
+        <p class="text-gray-500 font-sarabun text-sm">อัพโหลดและจัดการข้อมูลครูประจำวิชา</p>
+       </div>
+      </div><!-- Upload Section -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+       <h3 class="font-kanit font-semibold text-navy mb-2">อัพโหลดข้อมูลครู (CSV)</h3>
+       <p class="text-sm text-gray-500 font-sarabun mb-3">รูปแบบ: ชื่อ,นามสกุล,วิชาที่สอน,ระดับชั้น(ม.1/ม.4),ห้อง</p><textarea id="teacherCsv" rows="5" class="w-full px-4 py-3 border rounded-lg font-sarabun text-sm mb-2" placeholder="สมศักดิ์,มีสุข,คณิตศาสตร์,ม.1,1"></textarea>
+       <div id="teacherUploadProgress" class="hidden mb-3">
+        <div class="w-full bg-gray-200 rounded-full h-3">
+         <div id="teacherProgressBar" class="bg-sage h-3 rounded-full progress-bar" style="width:0%"></div>
+        </div>
+        <p class="text-sm text-gray-500 font-sarabun mt-1" id="teacherProgressText">0%</p>
+       </div><button onclick="uploadTeachers()" class="px-6 py-2 bg-sage text-white rounded-lg font-sarabun hover:opacity-90 transition" id="uploadTeacherBtn">อัพโหลด</button>
+      </div><!-- Add Teacher with Login -->
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+       <h3 class="font-kanit font-semibold text-navy mb-3">เพิ่มครูพร้อม Username/Password</h3>
+       <div class="grid grid-cols-1 md:grid-cols-3 gap-3"><input type="text" id="addTchFname" class="px-3 py-2 border rounded-lg font-sarabun text-sm" placeholder="ชื่อ"> <input type="text" id="addTchLname" class="px-3 py-2 border rounded-lg font-sarabun text-sm" placeholder="นามสกุล"> <input type="text" id="addTchSubject" class="px-3 py-2 border rounded-lg font-sarabun text-sm" placeholder="วิชา"> <select id="addTchLevel" class="px-3 py-2 border rounded-lg font-sarabun text-sm"> <option value="ม.1">ม.1</option><option value="ม.4">ม.4</option> </select> <select id="addTchRoom" class="px-3 py-2 border rounded-lg font-sarabun text-sm"></select>
+        <div></div><input type="text" id="addTchUser" class="px-3 py-2 border rounded-lg font-sarabun text-sm" placeholder="Username"> <input type="text" id="addTchPass" class="px-3 py-2 border rounded-lg font-sarabun text-sm" placeholder="Password"> <button onclick="addTeacher()" class="px-6 py-2 bg-navy text-white rounded-lg font-sarabun hover:bg-royal transition" id="addTeacherBtn">เพิ่มครู</button>
+       </div>
+      </div><!-- Teacher List -->
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+       <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+         <thead class="bg-gray-50">
+          <tr>
+           <th class="px-4 py-3 text-left">ชื่อ</th>
+           <th class="px-4 py-3 text-left">นามสกุล</th>
+           <th class="px-4 py-3 text-center">วิชา</th>
+           <th class="px-4 py-3 text-center">ชั้น</th>
+           <th class="px-4 py-3 text-center">ห้อง</th>
+           <th class="px-4 py-3 text-center">Username</th>
+           <th class="px-4 py-3 text-center">จัดการ</th>
+          </tr>
+         </thead>
+         <tbody id="teacherListBody"></tbody>
+        </table>
+       </div>
+       <div id="teacherEmpty" class="p-8 text-center text-gray-400 font-sarabun">
+        ยังไม่มีข้อมูลครู
+       </div>
+      </div>
+     </div><!-- REPORTS PAGE -->
+     <div id="page-reports" class="page-content hidden p-6 fade-in">
+      <div class="mb-6">
+       <h1 class="font-kanit text-2xl font-bold text-navy">รายงานสรุป</h1>
+       <p class="text-gray-500 font-sarabun text-sm">เปรียบเทียบผลการเข้าเรียนตลอดช่วงปรับพื้นฐาน</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+       <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">วันที่</label> <select id="rptDate" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="generateReport()"> <option value="">ทุกวัน</option> </select>
+       </div>
+       <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ระดับชั้น</label> <select id="rptLevel" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="updateReportRooms();generateReport()"> <option value="">ทั้งหมด</option><option value="ม.1">ม.1</option><option value="ม.4">ม.4</option> </select>
+       </div>
+       <div><label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ห้อง</label> <select id="rptRoom" class="w-full px-3 py-2 border rounded-lg font-sarabun" onchange="generateReport()"> <option value="">ทุกห้อง</option> </select>
+       </div>
+      </div>
+      <div class="bg-white rounded-xl p-6 shadow-sm mb-6">
+       <h3 class="font-kanit font-semibold text-navy mb-4">สรุปรายวัน (5-13 พ.ค. 2569 ยกเว้น 9-11 พ.ค.)</h3>
+       <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+         <thead class="bg-gray-50">
+          <tr id="reportHeader"></tr>
+         </thead>
+         <tbody id="reportBody"></tbody>
+        </table>
+       </div>
+      </div>
+      <div class="bg-white rounded-xl p-6 shadow-sm">
+       <h3 class="font-kanit font-semibold text-navy mb-4">กราฟเปรียบเทียบรายวัน</h3>
+       <div id="reportBarChart" class="space-y-4"></div>
+      </div>
+      <div class="bg-white rounded-xl p-6 shadow-sm mt-6">
+       <h3 class="font-kanit font-semibold text-navy mb-4">รายงานรายคาบและห้องเรียน</h3>
+       <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+         <thead class="bg-gray-50">
+          <tr>
+           <th class="px-3 py-2 text-left">วันที่</th>
+           <th class="px-3 py-2 text-left">คาบ</th>
+           <th class="px-3 py-2 text-left">ห้อง</th>
+           <th class="px-3 py-2 text-left">นักเรียนไม่มา</th>
+          </tr>
+         </thead>
+         <tbody id="periodReportBody"></tbody>
+        </table>
+       </div>
+       <div id="periodReportEmpty" class="hidden p-6 text-center text-gray-400 font-sarabun">ยังไม่มีข้อมูลนักเรียนไม่มาในเงื่อนไขนี้</div>
+      </div>
+     </div>
+    </main>
+   </div><!-- Edit Modal -->
+   <div id="editModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+     <h3 class="font-kanit font-semibold text-navy mb-4" id="editModalTitle">แก้ไข</h3>
+     <div id="editModalBody" class="space-y-3"></div>
+     <div class="flex gap-3 mt-6"><button onclick="closeModal()" class="flex-1 py-2 border border-gray-300 rounded-lg font-sarabun hover:bg-gray-50 transition">ยกเลิก</button> <button onclick="saveEdit()" class="flex-1 py-2 bg-navy text-white rounded-lg font-sarabun hover:bg-royal transition" id="editSaveBtn">บันทึก</button>
+     </div>
+    </div>
+   </div><!-- Delete Confirm -->
+   <div id="deleteModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-xl p-6 w-full max-w-sm mx-4 shadow-2xl text-center">
+     <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+      <i data-lucide="trash-2" class="w-6 h-6 text-red-500"></i>
+     </div>
+     <h3 class="font-kanit font-semibold text-navy mb-2">ยืนยันการลบ</h3>
+     <p class="text-sm text-gray-500 font-sarabun mb-6" id="deleteModalText">คุณต้องการลบข้อมูลนี้?</p>
+     <div class="flex gap-3"><button onclick="closeDeleteModal()" class="flex-1 py-2 border border-gray-300 rounded-lg font-sarabun hover:bg-gray-50 transition">ยกเลิก</button> <button onclick="confirmDelete()" class="flex-1 py-2 bg-red-500 text-white rounded-lg font-sarabun hover:bg-red-600 transition" id="deletConfirmBtn">ลบ</button>
+     </div>
+    </div>
+   </div><!-- Toast container -->
+   <div id="toastContainer"></div>
+  </div>
+  <script>
+// ============ SDK FALLBACKS ============
+const STORAGE_KEY = 'attendance-app-records';
+const SCHOOL_LOGO_URL = 'https://lh3.googleusercontent.com/d/1ULXHEVlWOzUaN6XpXNVczKbHPPgzoOc7';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwpkSzJX6QmpQUNbT7VLkrXVYvNDIVjIUZ35rmID1w-m_qSGRHcrSOadEh1cQBJ_IQtbA/exec';
+const DATA_REFRESH_MS = 30000;
+
+if(!window.lucide){
+  window.lucide = { createIcons(){} };
+}
+
+if(!window.elementSdk){
+  window.elementSdk = {
+    init(options){
+      if(options?.onConfigChange){
+        Promise.resolve().then(()=>options.onConfigChange(options.defaultConfig || {}));
+      }
+    },
+    setConfig(){}
+  };
+}
+
+if(!window.dataSdk){
+  const clone = (value)=> JSON.parse(JSON.stringify(value));
+  let handler = null;
+  let refreshTimer = null;
+
+  const seedRecords = [];
+  const splitTeacherName = (fullName)=>{
+    const cleaned = String(fullName || '').trim();
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if(parts.length <= 1){
+      return { first_name: cleaned, last_name: '' };
+    }
+    return {
+      first_name: parts.shift(),
+      last_name: parts.join(' ')
+    };
+  };
+
+  const normalizeSheetDate = (value)=>{
+    const raw = String(value || '').trim();
+    if(!raw) return '';
+    if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if(raw.includes('T')){
+      const parsed = new Date(raw);
+      if(!Number.isNaN(parsed.getTime())){
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Bangkok',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).format(parsed);
+      }
+      return raw.slice(0, 10);
+    }
+    return raw;
+  };
+
+  const mapRows = (rows)=>{
+    if(!Array.isArray(rows) || rows.length === 0) return [];
+    const [headers, ...values] = rows;
+    return values.map((row)=>{
+      const item = {};
+      headers.forEach((header, index)=>{
+        item[String(header)] = row[index] ?? '';
+      });
+      return item;
+    });
+  };
+
+  const normalizePayload = (payload)=>{
+    const students = mapRows(payload.students).map((row)=>({
+      __backendId: String(row['student_id'] || ''),
+      type: 'student',
+      student_id: String(row['student_id'] || ''),
+      number: String(row['เลขที่'] || ''),
+      first_name: String(row['ชื่อ'] || ''),
+      last_name: String(row['นามสกุล'] || ''),
+      level: String(row['ระดับชั้น'] || ''),
+      room: String(row['ห้อง'] || ''),
+      subject: '',
+      username: '',
+      password: '',
+      date: '',
+      period: '',
+      status: '',
+      teacher_id: ''
+    }));
+
+    const teachers = mapRows(payload.teachers).map((row)=>{
+      const name = splitTeacherName(row['ชื่อ']);
+      return {
+        __backendId: String(row['username'] || row['ชื่อ'] || ''),
+        type: 'teacher',
+        username: String(row['username'] || ''),
+        password: String(row['password'] || ''),
+        first_name: name.first_name,
+        last_name: name.last_name,
+        display_name: String(row['ชื่อ'] || ''),
+        role: String(row['role'] || 'teacher'),
+        level: String(row['ระดับชั้น'] || ''),
+        room: String(row['ห้อง'] || ''),
+        subject: String(row['วิชา'] || ''),
+        number: '',
+        date: '',
+        period: '',
+        status: '',
+        student_id: '',
+        teacher_id: String(row['username'] || '')
+      };
+    });
+
+    const attendance = mapRows(payload.attendance).map((row)=>({
+      __backendId: `${row['student_id'] || ''}_${normalizeSheetDate(row['date']) || ''}_${row['period_code'] || ''}`,
+      type: 'attendance',
+      student_id: String(row['student_id'] || ''),
+      date: normalizeSheetDate(row['date']),
+      period: String(row['period_code'] || ''),
+      period_code: String(row['period_code'] || ''),
+      status: String(row['status'] || ''),
+      teacher_id: String(row['checked_by'] || ''),
+      checked_by: String(row['checked_by'] || ''),
+      checked_at: String(row['checked_at'] || ''),
+      number: '',
+      first_name: '',
+      last_name: '',
+      level: '',
+      room: '',
+      subject: '',
+      username: '',
+      password: ''
+    }));
+
+    const behavior = mapRows(payload.behavior).map((row, index)=>({
+      __backendId: String(row['id'] || `behavior_${index + 1}`),
+      type: 'behavior',
+      behavior_id: String(row['id'] || ''),
+      student_id: String(row['student_id'] || ''),
+      date: normalizeSheetDate(row['date']),
+      teacher: String(row['teacher'] || ''),
+      details: String(row['details'] || ''),
+      student_name: String(row['student_name'] || row['name'] || ''),
+      number: String(row['number'] || row['เลขที่'] || ''),
+      level: String(row['level'] || row['ระดับชั้น'] || ''),
+      room: String(row['room'] || row['ห้อง'] || ''),
+      first_name: '',
+      last_name: '',
+      subject: '',
+      username: '',
+      password: '',
+      status: '',
+      period: '',
+      teacher_id: ''
+    }));
+
+    return [...students, ...teachers, ...attendance, ...behavior];
+  };
+
+  const loadRecords = ()=>{
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
+        if(Array.isArray(parsed)) return parsed;
+      }
+    }catch(error){
+      console.warn('Unable to read local records', error);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(seedRecords));
+    return clone(seedRecords);
+  };
+
+  let records = loadRecords();
+
+  const persist = ()=>{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    if(handler?.onDataChanged){
+      handler.onDataChanged(clone(records));
+    }
+  };
+
+  const syncFromApi = async()=>{
+    const buildActionUrl = (action)=> `${API_URL}?action=${encodeURIComponent(action)}&t=${Date.now()}`;
+    const [studentsResponse, teachersResponse, attendanceResponse, behaviorResponse] = await Promise.all([
+      fetch(buildActionUrl('students'), { cache: 'no-store' }),
+      fetch(buildActionUrl('teachers'), { cache: 'no-store' }),
+      fetch(buildActionUrl('attendance'), { cache: 'no-store' }),
+      fetch(buildActionUrl('behavior'), { cache: 'no-store' })
+    ]);
+    if(!studentsResponse.ok || !teachersResponse.ok || !attendanceResponse.ok || !behaviorResponse.ok){
+      throw new Error('Failed to load sheet data');
+    }
+    const [students, teachers, attendance, behavior] = await Promise.all([
+      studentsResponse.json(),
+      teachersResponse.json(),
+      attendanceResponse.json(),
+      behaviorResponse.json()
+    ]);
+    const payload = { students, teachers, attendance, behavior };
+    records = normalizePayload(payload);
+    ensureKnownDates(records);
+    persist();
+    return clone(records);
+  };
+
+  const unsupportedMutation = ()=>({
+    isOk: false,
+    error: 'Google Sheet endpoint นี้รองรับการแก้ไขเฉพาะการเช็กชื่อเท่านั้น'
+  });
+
+  window.dataSdk = {
+    supportsManagement: false,
+    init(nextHandler){
+      handler = nextHandler;
+      if(handler?.onDataChanged){
+        handler.onDataChanged(clone(records));
+      }
+      syncFromApi().catch((error)=>{
+        console.warn('Using cached sheet data', error);
+      });
+      if(!refreshTimer){
+        refreshTimer = window.setInterval(()=>{
+          syncFromApi().catch((error)=>console.warn('Sheet refresh failed', error));
+        }, DATA_REFRESH_MS);
+      }
+    },
+    async refresh(){
+      return syncFromApi();
+    },
+    async create(record){
+      if(record.type !== 'attendance' && record.type !== 'behavior'){
+        return unsupportedMutation();
+      }
+      const payload = record.type === 'behavior'
+        ? {
+            type: 'behavior',
+            student_id: record.student_id,
+            date: record.date,
+            teacher: record.teacher || currentUser?.name || '',
+            details: record.details || '',
+            student_name: record.student_name || '',
+            number: record.number || '',
+            level: record.level || '',
+            room: record.room || ''
+          }
+        : {
+            student_id: record.student_id,
+            date: record.date,
+            period: record.period || record.period_code,
+            period_code: record.period || record.period_code,
+            status: record.status,
+            checked_by: record.teacher_id || currentUser?.backendId || currentUser?.name || ''
+          };
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const responseText = await response.text();
+      const postUnsupported = /doPost|ไม่พบฟังก์ชันของสคริปต์|script function not found/i.test(responseText);
+      if(!response.ok || postUnsupported){
+        return {
+          isOk:false,
+          error: postUnsupported
+            ? 'Apps Script ตัวนี้ยังไม่มี doPost จึงบันทึกกลับ Google Sheet ไม่ได้'
+            : `Failed to save attendance: ${response.status}`
+        };
+      }
+      syncFromApi().catch((error)=>console.warn('Post-save refresh failed', error));
+      const created = records.find(item => {
+        if(record.type === 'behavior'){
+          return item.type === 'behavior' &&
+            item.student_id === record.student_id &&
+            item.date === record.date &&
+            item.details === record.details;
+        }
+        return item.type === 'attendance' &&
+          item.student_id === record.student_id &&
+          item.date === record.date &&
+          item.period === (record.period || record.period_code);
+      });
+      return {isOk:true, data:clone(created || payload)};
+    },
+    async update(record){
+      if(record.type !== 'attendance'){
+        return unsupportedMutation();
+      }
+      return this.create(record);
+    },
+    async delete(record){
+      return unsupportedMutation();
+    }
+  };
+}
+
+// ============ STATE ============
+let allRecords = [];
+let currentUser = null; // {role:'admin'|'teacher', name, level, room}
+let editingRecord = null;
+let deletingRecord = null;
+let attendanceMap = {}; // key: `${studentBackendId}_${date}_${period}` => status
+
+const VALID_DATES = ['2569-05-05','2569-05-06','2569-05-07','2569-05-08','2569-05-12','2569-05-13'];
+const DATE_LABELS = {'2569-05-05':'5 พ.ค.','2569-05-06':'6 พ.ค.','2569-05-07':'7 พ.ค.','2569-05-08':'8 พ.ค.','2569-05-12':'12 พ.ค.','2569-05-13':'13 พ.ค.'};
+const PERIODS = [
+  {id:'assembly',label:'เข้าแถว 7:40-8:30'},
+  {id:'p1',label:'คาบ 1 (08:30-09:30)'},
+  {id:'p2',label:'คาบ 2 (09:30-10:30)'},
+  {id:'p3',label:'คาบ 3 (10:30-11:30)'},
+  {id:'p4',label:'คาบ 4 (11:30-12:30)'},
+  {id:'p5',label:'คาบ 5 (12:30-13:30)'},
+  {id:'p6',label:'คาบ 6 (13:30-14:30)'},
+  {id:'p7',label:'คาบ 7 (14:30-15:30)'}
+];
+
+// ============ HELPERS ============
+function getStudents(){ return allRecords.filter(r=>r.type==='student'); }
+function getTeachers(){ return allRecords.filter(r=>r.type==='teacher'); }
+function getAttendanceRecords(){ return allRecords.filter(r=>r.type==='attendance'); }
+function getBehaviorRecords(){ return allRecords.filter(r=>r.type==='behavior'); }
+
+function formatThaiDateLabel(dateString){
+  const match = String(dateString || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!match) return String(dateString || '');
+  const [, , month, day] = match;
+  const thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return `${Number(day)} ${thaiMonths[Number(month) - 1] || month}`;
+}
+
+function ensureKnownDates(nextRecords){
+  if(typeof VALID_DATES === 'undefined' || typeof DATE_LABELS === 'undefined') return;
+  const dates = new Set(VALID_DATES);
+  (nextRecords || []).forEach(record => {
+    const normalized = String(record?.date || '').trim();
+    if(/^\d{4}-\d{2}-\d{2}$/.test(normalized)){
+      dates.add(normalized);
+      if(!DATE_LABELS[normalized]){
+        DATE_LABELS[normalized] = formatThaiDateLabel(normalized);
+      }
+    }
+  });
+
+  VALID_DATES.length = 0;
+  [...dates].sort((a, b) => a.localeCompare(b)).forEach(date => VALID_DATES.push(date));
+}
+
+function showToast(msg, type='success'){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.background = type==='success'?'#22c55e':type==='error'?'#ef4444':'#eab308';
+  t.textContent = msg;
+  document.getElementById('toastContainer').appendChild(t);
+  setTimeout(()=>t.remove(),3000);
+}
+
+function getRooms(level){
+  return level==='ม.1'? Array.from({length:15},(_,i)=>String(i+1)) : Array.from({length:11},(_,i)=>String(i+1));
+}
+
+function managementLocked(){
+  return window.dataSdk?.supportsManagement === false;
+}
+
+function togglePassword(inputId, button){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  if(button){
+    button.setAttribute('aria-pressed', String(isHidden));
+    button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    button.innerHTML = `<i data-lucide="${isHidden ? 'eye-off' : 'eye'}" class="w-5 h-5"></i>`;
+    lucide.createIcons();
+  }
+}
+
+function enhancePasswordField(inputId){
+  const input = document.getElementById(inputId);
+  if(!input || input.dataset.enhancedPassword === 'true') return;
+  input.type = 'password';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'password-field';
+  input.parentNode.insertBefore(wrapper, input);
+  wrapper.appendChild(input);
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'password-toggle';
+  button.setAttribute('aria-label', 'Show password');
+  button.setAttribute('aria-pressed', 'false');
+  button.innerHTML = '<i data-lucide="eye" class="w-5 h-5"></i>';
+  button.addEventListener('click', ()=>togglePassword(inputId, button));
+  wrapper.appendChild(button);
+  input.dataset.enhancedPassword = 'true';
+}
+
+function toggleSidebar(forceOpen){
+  const sidebar = document.getElementById('sidebarEl');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if(!sidebar || !backdrop) return;
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', shouldOpen);
+  backdrop.classList.toggle('open', shouldOpen);
+  document.body.style.overflow = shouldOpen && window.innerWidth <= 1024 ? 'hidden' : '';
+}
+
+function closeSidebar(){
+  toggleSidebar(false);
+}
+
+function setupMobileUI(){
+  const mainApp = document.getElementById('mainApp');
+  const mainContent = document.getElementById('mainContent');
+  if(mainApp && !document.getElementById('sidebarBackdrop')){
+    const backdrop = document.createElement('div');
+    backdrop.id = 'sidebarBackdrop';
+    backdrop.className = 'sidebar-backdrop';
+    backdrop.addEventListener('click', closeSidebar);
+    mainApp.insertBefore(backdrop, mainApp.firstChild);
+  }
+
+  if(mainContent && !document.getElementById('mobileTopbar')){
+    const topbar = document.createElement('div');
+    topbar.id = 'mobileTopbar';
+    topbar.className = 'mobile-topbar';
+    topbar.innerHTML = `
+      <button type="button" class="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-navy text-white" aria-label="Open menu" id="mobileMenuBtn">
+        <i data-lucide="menu" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center gap-3">
+        <img src="${SCHOOL_LOGO_URL}" alt="School logo" class="w-11 h-11 rounded-xl object-cover shadow-sm">
+        <div class="text-right">
+        <p class="font-kanit text-sm font-semibold text-navy" id="mobileSchoolName">School</p>
+        <p class="text-xs text-slate-500 font-sarabun" id="mobileUserName">User</p>
+        </div>
+      </div>
+    `;
+    mainContent.insertBefore(topbar, mainContent.firstChild);
+    document.getElementById('mobileMenuBtn')?.addEventListener('click', ()=>toggleSidebar());
+  }
+
+  enhancePasswordField('loginPass');
+  enhancePasswordField('addTchPass');
+}
+
+function setupReportFilters(){
+  const reportGrid = document.getElementById('rptDate')?.parentElement?.parentElement;
+  if(reportGrid && !document.getElementById('rptPeriod')){
+    reportGrid.className = 'grid grid-cols-1 md:grid-cols-4 gap-4 mb-6';
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `<label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">คาบ</label>
+      <select id="rptPeriod" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+        <option value="">ทุกคาบ</option>
+      </select>`;
+    const levelBox = document.getElementById('rptLevel')?.parentElement;
+    if(levelBox){
+      reportGrid.insertBefore(wrapper, levelBox);
+    } else {
+      reportGrid.appendChild(wrapper);
+    }
+    document.getElementById('rptPeriod')?.addEventListener('change', generateReport);
+  }
+
+  const periodSelect = document.getElementById('rptPeriod');
+  if(periodSelect && periodSelect.options.length <= 1){
+    periodSelect.innerHTML = '<option value="">ทุกคาบ</option>' + PERIODS.map(period => `<option value="${period.id}">${period.label}</option>`).join('');
+  }
+}
+
+function setupNavHeader(){
+  const sideSchoolName = document.getElementById('sideSchoolName');
+  const sideSemester = document.getElementById('sideSemester');
+  if(sideSchoolName){
+    sideSchoolName.textContent = 'โรงเรียนชลบุรี "สุขบท"';
+  }
+
+  if(sideSemester && !document.getElementById('sideProgramName')){
+    const program = document.createElement('p');
+    program.id = 'sideProgramName';
+    program.className = 'text-xs text-white/80 font-sarabun';
+    program.textContent = 'การเรียนปรับพื้นฐาน';
+    sideSemester.parentElement?.insertBefore(program, sideSemester);
+  }
+
+  const mobileSchoolName = document.getElementById('mobileSchoolName');
+  const mobileUserName = document.getElementById('mobileUserName');
+  if(mobileSchoolName){
+    mobileSchoolName.textContent = 'โรงเรียนชลบุรี "สุขบท"';
+  }
+
+  if(mobileUserName && !document.getElementById('mobileProgramName')){
+    const program = document.createElement('p');
+    program.id = 'mobileProgramName';
+    program.className = 'text-[11px] text-slate-500 font-sarabun leading-tight';
+    program.textContent = 'การเรียนปรับพื้นฐาน';
+    mobileUserName.parentElement?.insertBefore(program, mobileUserName);
+  }
+}
+
+// ============ INIT ============
+const defaultConfig = {
+  school_name: 'โรงเรียนชลบุรี "สุขบท"',
+  semester_text: '1/2569',
+  background_color: '#f0f2f5',
+  surface_color: '#ffffff',
+  text_color: '#1a2744',
+  primary_action_color: '#2d4a7a',
+  secondary_action_color: '#4a7c6f'
+};
+
+function applyConfig(config){
+  const sn = config.school_name || defaultConfig.school_name;
+  const sem = config.semester_text || defaultConfig.semester_text;
+  const bg = config.background_color || defaultConfig.background_color;
+  const sf = config.surface_color || defaultConfig.surface_color;
+  const tx = config.text_color || defaultConfig.text_color;
+  const pa = config.primary_action_color || defaultConfig.primary_action_color;
+  const sa = config.secondary_action_color || defaultConfig.secondary_action_color;
+
+  document.getElementById('loginSchoolName').textContent = sn;
+  document.getElementById('loginSemester').textContent = 'ระบบเช็คชื่อปรับพื้นฐาน ภาคเรียนที่ ' + sem;
+  document.getElementById('sideSchoolName').textContent = sn;
+  document.getElementById('sideSemester').textContent = sem;
+  document.getElementById('loginSemester').textContent = 'ระบบเช็คชื่อนักเรียน การเรียนปรับพื้นฐาน ภาคเรียนที่ ' + sem;
+
+  document.querySelector('.app-wrapper').style.background = bg;
+  document.getElementById('mainContent').style.background = bg;
+}
+
+window.elementSdk.init({
+  defaultConfig,
+  onConfigChange: async(config)=>{ applyConfig(config); },
+  mapToCapabilities:(config)=>({
+    recolorables:[
+      {get:()=>config.background_color||defaultConfig.background_color, set:v=>{config.background_color=v;window.elementSdk.setConfig({background_color:v})}},
+      {get:()=>config.surface_color||defaultConfig.surface_color, set:v=>{config.surface_color=v;window.elementSdk.setConfig({surface_color:v})}},
+      {get:()=>config.text_color||defaultConfig.text_color, set:v=>{config.text_color=v;window.elementSdk.setConfig({text_color:v})}},
+      {get:()=>config.primary_action_color||defaultConfig.primary_action_color, set:v=>{config.primary_action_color=v;window.elementSdk.setConfig({primary_action_color:v})}},
+      {get:()=>config.secondary_action_color||defaultConfig.secondary_action_color, set:v=>{config.secondary_action_color=v;window.elementSdk.setConfig({secondary_action_color:v})}}
+    ],
+    borderables:[],
+    fontEditable:{get:()=>config.font_family||'Sarabun', set:v=>{config.font_family=v;window.elementSdk.setConfig({font_family:v})}},
+    fontSizeable:{get:()=>config.font_size||14, set:v=>{config.font_size=v;window.elementSdk.setConfig({font_size:v})}}
+  }),
+  mapToEditPanelValues:(config)=>new Map([
+    ['school_name', config.school_name||defaultConfig.school_name],
+    ['semester_text', config.semester_text||defaultConfig.semester_text]
+  ])
+});
+
+// Data SDK
+const dataHandler = {
+  onDataChanged(data){
+    allRecords = data;
+    refreshCurrentPage();
+  }
+};
+window.dataSdk.init(dataHandler);
+
+// ============ LOGIN ============
+async function handleLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value.trim();
+  const err = document.getElementById('loginError');
+
+  if(u==='admin' && p==='admin'){
+    currentUser = {role:'admin', name:'Admin', level:null, room:null, backendId:'admin'};
+    showMainApp();
+    return;
+  }
+  if(getTeachers().length===0){
+    try{
+      await window.dataSdk.refresh();
+    }catch(error){
+      console.warn('Login refresh failed', error);
+    }
+  }
+  // Check teachers
+  const teacher = getTeachers().find(t=>t.username===u && t.password===p);
+  if(teacher){
+    currentUser = {role:'teacher', name:teacher.display_name || `${teacher.first_name} ${teacher.last_name}`.trim(), level:teacher.level, room:teacher.room, backendId:teacher.__backendId};
+    showMainApp();
+    return;
+  }
+  err.textContent = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+  err.classList.remove('hidden');
+}
+
+function showMainApp(){
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  document.getElementById('currentUserName').textContent = currentUser.name;
+  document.getElementById('currentUserRole').textContent = currentUser.role==='admin'?'ผู้ดูแลระบบ':'ครูประจำวิชา';
+
+  // Hide admin-only for teachers
+  document.querySelectorAll('.admin-only').forEach(el=>{
+    el.style.display = currentUser.role==='admin'?'':'none';
+  });
+
+  initDateSelect();
+  updateRoomOptions();
+  initAddTeacherRooms();
+  navigateTo('dashboard');
+  closeSidebar();
+  const mobileSchoolName = document.getElementById('mobileSchoolName');
+  const mobileUserName = document.getElementById('mobileUserName');
+  if(mobileSchoolName) mobileSchoolName.textContent = document.getElementById('sideSchoolName').textContent;
+  if(mobileUserName) mobileUserName.textContent = currentUser.name;
+  setupNavHeader();
+  lucide.createIcons();
+}
+
+function handleLogout(){
+  currentUser = null;
+  document.getElementById('mainApp').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginUser').value='';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginError').classList.add('hidden');
+  closeSidebar();
+}
+
+// ============ NAVIGATION ============
+function navigateTo(page){
+  document.querySelectorAll('.page-content').forEach(p=>p.classList.add('hidden'));
+  const el = document.getElementById('page-'+page);
+  if(el){el.classList.remove('hidden');el.classList.add('fade-in');}
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    b.classList.toggle('bg-white/20', b.dataset.nav===page);
+  });
+  if(page !== 'attendance'){
+    attendanceDirty = false;
+  }
+  if(window.innerWidth <= 1024) closeSidebar();
+  if(page==='dashboard') renderDashboard();
+  if(page==='attendance') loadAttendance();
+  if(page==='students') renderStudentList();
+  if(page==='teachers') renderTeacherList();
+  if(page==='reports') generateReport();
+  lucide.createIcons();
+}
+
+function refreshCurrentPage(){
+  const visible = document.querySelector('.page-content:not(.hidden)');
+  if(!visible) return;
+  const id = visible.id.replace('page-','');
+  if(id==='dashboard') renderDashboard();
+  if(id==='students') renderStudentList();
+  if(id==='teachers') renderTeacherList();
+  if(id==='attendance'){
+    if(!attendanceDirty) loadAttendance();
+  }
+  if(id==='reports') generateReport();
+}
+
+// ============ DATE SELECT ============
+function initDateSelect(){
+  const sel = document.getElementById('attDate');
+  sel.innerHTML = VALID_DATES.map(d=>`<option value="${d}">${DATE_LABELS[d]}</option>`).join('');
+}
+
+// ============ ROOM OPTIONS ============
+function updateRoomOptions(){
+  const level = document.getElementById('attLevel').value;
+  const sel = document.getElementById('attRoom');
+  const rooms = getRooms(level);
+  sel.innerHTML = rooms.map(r=>`<option value="${r}">${r}</option>`).join('');
+}
+
+function initAddTeacherRooms(){
+  const sel = document.getElementById('addTchRoom');
+  const level = document.getElementById('addTchLevel').value;
+  sel.innerHTML = getRooms(level).map(r=>`<option value="${r}">${r}</option>`).join('');
+}
+document.getElementById('addTchLevel').addEventListener('change', initAddTeacherRooms);
+
+// ============ STUDENT UPLOAD ============
+async function uploadStudents(){
+  if(managementLocked()){ showToast('ข้อมูลนักเรียนใช้จาก Google Sheet เป็นหลัก กรุณาแก้ไขที่ชีตต้นทาง', 'warning'); return; }
+  const csv = document.getElementById('studentCsv').value.trim();
+  if(!csv){showToast('กรุณาวางข้อมูล CSV','error');return;}
+  const lines = csv.split('\n').map(l=>l.trim()).filter(l=>l);
+  if(lines.length>40){showToast('อัพโหลดได้ครั้งละไม่เกิน 40 คน','error');return;}
+  if(allRecords.length + lines.length > 999){showToast('เกินขีดจำกัด 999 รายการ','error');return;}
+
+  const btn = document.getElementById('uploadStudentBtn');
+  btn.disabled=true; btn.textContent='กำลังอัพโหลด...';
+  document.getElementById('studentUploadProgress').classList.remove('hidden');
+
+  for(let i=0;i<lines.length;i++){
+    const parts = lines[i].split(',').map(s=>s.trim());
+    if(parts.length<5) continue;
+    const result = await window.dataSdk.create({type:'student', number:parts[0], first_name:parts[1], last_name:parts[2], level:parts[3], room:parts[4], subject:'', username:'', password:'', date:'', period:'', status:'', student_id:'', teacher_id:''});
+    if(!result.isOk) showToast('เกิดข้อผิดพลาด','error');
+    const pct = Math.round(((i+1)/lines.length)*100);
+    document.getElementById('studentProgressBar').style.width = pct+'%';
+    document.getElementById('studentProgressText').textContent = pct+'%';
+  }
+  btn.disabled=false; btn.textContent='อัพโหลด';
+  document.getElementById('studentCsv').value='';
+  showToast(`อัพโหลดนักเรียน ${lines.length} คนสำเร็จ`);
+}
+
+// ============ TEACHER UPLOAD ============
+async function uploadTeachers(){
+  if(managementLocked()){ showToast('ข้อมูลครูใช้จาก Google Sheet เป็นหลัก กรุณาแก้ไขที่ชีตต้นทาง', 'warning'); return; }
+  const csv = document.getElementById('teacherCsv').value.trim();
+  if(!csv){showToast('กรุณาวางข้อมูล CSV','error');return;}
+  const lines = csv.split('\n').map(l=>l.trim()).filter(l=>l);
+  if(allRecords.length + lines.length > 999){showToast('เกินขีดจำกัด 999 รายการ','error');return;}
+
+  const btn = document.getElementById('uploadTeacherBtn');
+  btn.disabled=true; btn.textContent='กำลังอัพโหลด...';
+  document.getElementById('teacherUploadProgress').classList.remove('hidden');
+
+  for(let i=0;i<lines.length;i++){
+    const parts = lines[i].split(',').map(s=>s.trim());
+    if(parts.length<5) continue;
+    const uname = (parts[0]+'.'+parts[1].charAt(0)).toLowerCase().replace(/\s/g,'');
+    const result = await window.dataSdk.create({type:'teacher', number:'', first_name:parts[0], last_name:parts[1], subject:parts[2], level:parts[3], room:parts[4], username:uname, password:'1234', date:'', period:'', status:'', student_id:'', teacher_id:''});
+    if(!result.isOk) showToast('เกิดข้อผิดพลาด','error');
+    const pct = Math.round(((i+1)/lines.length)*100);
+    document.getElementById('teacherProgressBar').style.width = pct+'%';
+    document.getElementById('teacherProgressText').textContent = pct+'%';
+  }
+  btn.disabled=false; btn.textContent='อัพโหลด';
+  document.getElementById('teacherCsv').value='';
+  showToast(`อัพโหลดครู ${lines.length} คนสำเร็จ`);
+}
+
+async function addTeacher(){
+  if(managementLocked()){ showToast('ข้อมูลครูใช้จาก Google Sheet เป็นหลัก กรุณาแก้ไขที่ชีตต้นทาง', 'warning'); return; }
+  const fn=document.getElementById('addTchFname').value.trim();
+  const ln=document.getElementById('addTchLname').value.trim();
+  const sb=document.getElementById('addTchSubject').value.trim();
+  const lv=document.getElementById('addTchLevel').value;
+  const rm=document.getElementById('addTchRoom').value;
+  const un=document.getElementById('addTchUser').value.trim();
+  const pw=document.getElementById('addTchPass').value.trim();
+  if(!fn||!ln||!un||!pw){showToast('กรุณากรอกข้อมูลให้ครบ','error');return;}
+  if(allRecords.length>=999){showToast('เกินขีดจำกัด 999 รายการ','error');return;}
+
+  const btn=document.getElementById('addTeacherBtn');
+  btn.disabled=true;btn.textContent='กำลังบันทึก...';
+  const r = await window.dataSdk.create({type:'teacher',number:'',first_name:fn,last_name:ln,subject:sb,level:lv,room:rm,username:un,password:pw,date:'',period:'',status:'',student_id:'',teacher_id:''});
+  btn.disabled=false;btn.textContent='เพิ่มครู';
+  if(r.isOk){showToast('เพิ่มครูสำเร็จ');['addTchFname','addTchLname','addTchSubject','addTchUser','addTchPass'].forEach(id=>document.getElementById(id).value='');}
+  else showToast('เกิดข้อผิดพลาด','error');
+}
+
+// ============ RENDER LISTS ============
+function renderStudentList(){
+  const students = getStudents();
+  const levelF = document.getElementById('filterStudentLevel').value;
+  const roomF = document.getElementById('filterStudentRoom').value;
+  const search = document.getElementById('searchStudent').value.trim().toLowerCase();
+
+  let filtered = students;
+  if(levelF) filtered = filtered.filter(s=>s.level===levelF);
+  if(roomF) filtered = filtered.filter(s=>s.room===roomF);
+  if(search) filtered = filtered.filter(s=>(s.first_name+s.last_name).toLowerCase().includes(search));
+
+  filtered.sort((a,b)=>{
+    if(a.level!==b.level) return a.level.localeCompare(b.level);
+    if(a.room!==b.room) return Number(a.room)-Number(b.room);
+    return Number(a.number)-Number(b.number);
+  });
+
+  const body = document.getElementById('studentListBody');
+  const empty = document.getElementById('studentEmpty');
+  body.innerHTML = '';
+  if(filtered.length===0){empty.classList.remove('hidden');return;}
+  empty.classList.add('hidden');
+
+  filtered.forEach(s=>{
+    const tr = document.createElement('tr');
+    tr.className='border-b hover:bg-gray-50';
+    tr.innerHTML=`<td class="px-4 py-2">${s.number}</td><td class="px-4 py-2">${s.first_name}</td><td class="px-4 py-2">${s.last_name}</td><td class="px-4 py-2 text-center">${s.level}</td><td class="px-4 py-2 text-center">${s.room}</td>
+    <td class="px-4 py-2 text-center"><button onclick="editStudent('${s.__backendId}')" class="text-royal hover:underline text-xs mr-2">แก้ไข</button><button onclick="deleteRecord('${s.__backendId}','นักเรียน ${s.first_name}')" class="text-red-500 hover:underline text-xs">ลบ</button></td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderTeacherList(){
+  const teachers = getTeachers();
+  const body = document.getElementById('teacherListBody');
+  const empty = document.getElementById('teacherEmpty');
+  body.innerHTML='';
+  if(teachers.length===0){empty.classList.remove('hidden');return;}
+  empty.classList.add('hidden');
+  teachers.forEach(t=>{
+    const tr = document.createElement('tr');
+    tr.className='border-b hover:bg-gray-50';
+    tr.innerHTML=`<td class="px-4 py-2">${t.first_name}</td><td class="px-4 py-2">${t.last_name}</td><td class="px-4 py-2 text-center">${t.subject}</td><td class="px-4 py-2 text-center">${t.level}</td><td class="px-4 py-2 text-center">${t.room}</td><td class="px-4 py-2 text-center">${t.username}</td>
+    <td class="px-4 py-2 text-center"><button onclick="editTeacher('${t.__backendId}')" class="text-royal hover:underline text-xs mr-2">แก้ไข</button><button onclick="deleteRecord('${t.__backendId}','ครู ${t.first_name}')" class="text-red-500 hover:underline text-xs">ลบ</button></td>`;
+    body.appendChild(tr);
+  });
+}
+
+// ============ EDIT / DELETE ============
+function editStudent(id){
+  if(managementLocked()){ showToast('โหมดนี้เปิดดูข้อมูลจาก Google Sheet ได้อย่างเดียว', 'warning'); return; }
+  const s = allRecords.find(r=>r.__backendId===id);
+  if(!s) return;
+  editingRecord = s;
+  document.getElementById('editModalTitle').textContent='แก้ไขนักเรียน';
+  document.getElementById('editModalBody').innerHTML=`
+    <input id="ef1" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${s.number}" placeholder="เลขที่">
+    <input id="ef2" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${s.first_name}" placeholder="ชื่อ">
+    <input id="ef3" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${s.last_name}" placeholder="นามสกุล">
+    <select id="ef4" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm"><option ${s.level==='ม.1'?'selected':''}>ม.1</option><option ${s.level==='ม.4'?'selected':''}>ม.4</option></select>
+    <input id="ef5" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${s.room}" placeholder="ห้อง">`;
+  editingRecord._editType='student';
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+function editTeacher(id){
+  if(managementLocked()){ showToast('โหมดนี้เปิดดูข้อมูลจาก Google Sheet ได้อย่างเดียว', 'warning'); return; }
+  const t = allRecords.find(r=>r.__backendId===id);
+  if(!t) return;
+  editingRecord = t;
+  document.getElementById('editModalTitle').textContent='แก้ไขครู';
+  document.getElementById('editModalBody').innerHTML=`
+    <input id="ef1" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${t.first_name}" placeholder="ชื่อ">
+    <input id="ef2" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${t.last_name}" placeholder="นามสกุล">
+    <input id="ef3" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${t.subject}" placeholder="วิชา">
+    <select id="ef4" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm"><option ${t.level==='ม.1'?'selected':''}>ม.1</option><option ${t.level==='ม.4'?'selected':''}>ม.4</option></select>
+    <input id="ef5" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${t.room}" placeholder="ห้อง">
+    <input id="ef6" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${t.username}" placeholder="Username">
+    <input id="ef7" class="w-full px-3 py-2 border rounded-lg font-sarabun text-sm" value="${t.password}" placeholder="Password">`;
+  editingRecord._editType='teacher';
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+async function saveEdit(){
+  if(managementLocked()){ showToast('การแก้ไขรายชื่อยังต้องทำใน Google Sheet ต้นทาง', 'warning'); closeModal(); return; }
+  const btn = document.getElementById('editSaveBtn');
+  btn.disabled=true; btn.textContent='กำลังบันทึก...';
+  const rec = {...editingRecord};
+  delete rec._editType;
+  if(editingRecord._editType==='student'){
+    rec.number=document.getElementById('ef1').value;
+    rec.first_name=document.getElementById('ef2').value;
+    rec.last_name=document.getElementById('ef3').value;
+    rec.level=document.getElementById('ef4').value;
+    rec.room=document.getElementById('ef5').value;
+  } else {
+    rec.first_name=document.getElementById('ef1').value;
+    rec.last_name=document.getElementById('ef2').value;
+    rec.subject=document.getElementById('ef3').value;
+    rec.level=document.getElementById('ef4').value;
+    rec.room=document.getElementById('ef5').value;
+    rec.username=document.getElementById('ef6').value;
+    rec.password=document.getElementById('ef7').value;
+  }
+  const r = await window.dataSdk.update(rec);
+  btn.disabled=false; btn.textContent='บันทึก';
+  if(r.isOk) showToast('บันทึกสำเร็จ');
+  else showToast('เกิดข้อผิดพลาด','error');
+  closeModal();
+}
+
+function closeModal(){ document.getElementById('editModal').classList.add('hidden'); editingRecord=null; }
+
+function deleteRecord(id, label){
+  if(managementLocked()){ showToast('การลบข้อมูลยังต้องทำใน Google Sheet ต้นทาง', 'warning'); return; }
+  deletingRecord = allRecords.find(r=>r.__backendId===id);
+  document.getElementById('deleteModalText').textContent='ต้องการลบ '+label+' ?';
+  document.getElementById('deleteModal').classList.remove('hidden');
+}
+
+async function confirmDelete(){
+  if(managementLocked()){ showToast('การลบข้อมูลยังต้องทำใน Google Sheet ต้นทาง', 'warning'); closeDeleteModal(); return; }
+  if(!deletingRecord) return;
+  const btn = document.getElementById('deletConfirmBtn');
+  btn.disabled=true; btn.textContent='กำลังลบ...';
+  const r = await window.dataSdk.delete(deletingRecord);
+  btn.disabled=false; btn.textContent='ลบ';
+  if(r.isOk) showToast('ลบสำเร็จ');
+  else showToast('เกิดข้อผิดพลาด','error');
+  closeDeleteModal();
+}
+function closeDeleteModal(){ document.getElementById('deleteModal').classList.add('hidden'); deletingRecord=null; }
+
+// ============ ATTENDANCE ============
+let localAttendance = {}; // temp for current view
+let attendanceDirty = false;
+
+function loadAttendance(){
+  const date = document.getElementById('attDate')?.value;
+  const level = document.getElementById('attLevel')?.value;
+  const room = document.getElementById('attRoom')?.value;
+  const period = document.getElementById('attPeriod')?.value;
+  if(!date||!level||!room||!period) return;
+
+  // Filter students for this room - convert room to string for comparison
+  const students = getStudents().filter(s=>s.level===level && String(s.room)===String(room));
+  
+  console.log('Level:', level, 'Room:', room, 'Room type:', typeof room, 'Students:', students.length, 'Total students:', getStudents().length);
+  
+  students.sort((a,b)=>Number(a.number)-Number(b.number));
+
+  // Build attendance map from records and preserve unsaved local edits.
+  const attRecs = getAttendanceRecords().filter(a=>a.date===date && a.period===period);
+  const nextAttendance = {};
+  attRecs.forEach(a=>{ nextAttendance[a.student_id] = {status:a.status, record:a}; });
+  Object.entries(localAttendance).forEach(([sid, data])=>{
+    if(data?.status && data.status !== 'none'){
+      nextAttendance[sid] = { ...nextAttendance[sid], ...data };
+    }
+  });
+  localAttendance = nextAttendance;
+
+  const body = document.getElementById('attendanceBody');
+  const empty = document.getElementById('attEmpty');
+  body.innerHTML='';
+
+  if(students.length===0){empty.classList.remove('hidden');return;}
+  empty.classList.add('hidden');
+
+  students.forEach(s=>{
+    const sid = s.__backendId;
+    const st = localAttendance[sid]?.status || 'none';
+    const tr = document.createElement('tr');
+    tr.className='border-b';
+    tr.id='att-row-'+sid;
+    tr.innerHTML=`<td class="px-4 py-2 font-medium">${s.number}</td>
+    <td class="px-4 py-2">${s.first_name} ${s.last_name}</td>
+    <td class="px-4 py-3 text-center">
+      <div class="flex justify-center gap-2">
+        <button onclick="setStatus('${sid}','present')" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition ${st==='present'?'status-present':'status-none hover:bg-green-100'}">มา</button>
+        <button onclick="setStatus('${sid}','absent')" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition ${st==='absent'?'status-absent':'status-none hover:bg-red-100'}">ไม่มา</button>
+        <button onclick="setStatus('${sid}','leave')" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition ${st==='leave'?'status-leave':'status-none hover:bg-yellow-100'}">ลา</button>
+      </div>
+    </td>`;
+    body.appendChild(tr);
+  });
+}
+
+function setStatus(sid, status){
+  localAttendance[sid] = localAttendance[sid] || {};
+  localAttendance[sid].status = status;
+  attendanceDirty = true;
+  // Update button visuals
+  const row = document.getElementById('att-row-'+sid);
+  if(!row) return;
+  const btns = row.querySelectorAll('.att-btn');
+  btns.forEach(b=>{
+    b.className='att-btn px-3 py-1 rounded-full text-xs font-medium transition ';
+    const t=b.textContent.trim();
+    if(t==='มา') b.className += status==='present'?'status-present':'status-none hover:bg-green-100';
+    if(t==='ไม่มา') b.className += status==='absent'?'status-absent':'status-none hover:bg-red-100';
+    if(t==='ลา') b.className += status==='leave'?'status-leave':'status-none hover:bg-yellow-100';
+  });
+}
+
+function markAll(status){
+  const students = getStudents().filter(s=>s.level===document.getElementById('attLevel').value && String(s.room)===String(document.getElementById('attRoom').value));
+  students.forEach(s=>setStatus(s.__backendId, status));
+}
+
+async function saveAttendance(){
+  const date = document.getElementById('attDate').value;
+  const period = document.getElementById('attPeriod').value;
+  const btn = document.getElementById('saveAttBtn');
+  btn.disabled=true; btn.innerHTML='<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...';
+
+  let saved=0, errors=0;
+  for(const [sid, data] of Object.entries(localAttendance)){
+    if(!data.status || data.status==='none') continue;
+    if(data.record){
+      // Update existing
+      const updated = {...data.record, status:data.status};
+      const r = await window.dataSdk.update(updated);
+      if(r.isOk) saved++; else { errors++; console.error(r.error || 'Attendance update failed'); }
+    } else {
+      // Create new
+      if(allRecords.length>=999){showToast('เกินขีดจำกัด 999 รายการ','error');break;}
+      const r = await window.dataSdk.create({type:'attendance', number:'', first_name:'', last_name:'', level:'', room:'', subject:'', username:'', password:'', date, period, status:data.status, student_id:sid, teacher_id:currentUser?.backendId||'admin'});
+      if(r.isOk) saved++; else { errors++; console.error(r.error || 'Attendance create failed'); }
+    }
+  }
+  btn.disabled=false; btn.innerHTML='<i data-lucide="save" class="w-4 h-4"></i> บันทึก';
+  lucide.createIcons();
+  if(errors) showToast(`บันทึก ${saved} รายการ, ผิดพลาด ${errors}`,'error');
+  else showToast(`บันทึกเช็คชื่อ ${saved} รายการสำเร็จ`);
+}
+
+// ============ DASHBOARD ============
+function renderDashboard(){
+  const students = getStudents();
+  const attRecs = getAttendanceRecords();
+  const today = VALID_DATES[0]; // Default to first date
+
+  document.getElementById('statTotalStudents').textContent = students.length;
+
+  // Today's stats (use assembly period as default)
+  const todayAtt = attRecs.filter(a=>a.date===today && a.period==='assembly');
+  const present = todayAtt.filter(a=>a.status==='present').length;
+  const absent = todayAtt.filter(a=>a.status==='absent').length;
+  const leave = todayAtt.filter(a=>a.status==='leave').length;
+
+  document.getElementById('statPresent').textContent = present;
+  document.getElementById('statAbsent').textContent = absent;
+  document.getElementById('statLeave').textContent = leave;
+
+  // Pie Chart
+  drawPie(present, absent, leave);
+
+  // Bar Chart by date
+  const barEl = document.getElementById('barChart');
+  barEl.innerHTML='';
+  VALID_DATES.forEach(d=>{
+    const dayAtt = attRecs.filter(a=>a.date===d && a.period==='assembly');
+    const p = dayAtt.filter(a=>a.status==='present').length;
+    const total = students.length || 1;
+    const pct = Math.round((p/total)*100);
+    barEl.innerHTML+=`<div class="flex items-center gap-3"><span class="w-16 text-xs font-sarabun text-gray-600">${DATE_LABELS[d]}</span><div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden"><div class="bg-green-500 h-full rounded-full flex items-center justify-end pr-2 transition-all" style="width:${pct}%"><span class="text-xs text-white font-medium">${pct}%</span></div></div></div>`;
+  });
+
+  // Room summary
+  const roomBody = document.getElementById('roomSummaryBody');
+  roomBody.innerHTML='';
+  const levels = ['ม.1','ม.4'];
+  levels.forEach(lv=>{
+    const rooms = getRooms(lv);
+    rooms.forEach(rm=>{
+      const roomStudents = students.filter(s=>s.level===lv && s.room===rm);
+      if(roomStudents.length===0) return;
+      const roomAtt = attRecs.filter(a=>a.date===today && a.period==='assembly' && roomStudents.some(s=>s.__backendId===a.student_id));
+      const rp = roomAtt.filter(a=>a.status==='present').length;
+      const ra = roomAtt.filter(a=>a.status==='absent').length;
+      const rl = roomAtt.filter(a=>a.status==='leave').length;
+      const rpct = roomStudents.length?Math.round((rp/roomStudents.length)*100):0;
+      roomBody.innerHTML+=`<tr class="border-b hover:bg-gray-50"><td class="px-4 py-2">${lv}/${rm}</td><td class="px-4 py-2 text-center">${roomStudents.length}</td><td class="px-4 py-2 text-center text-green-600 font-medium">${rp}</td><td class="px-4 py-2 text-center text-red-600 font-medium">${ra}</td><td class="px-4 py-2 text-center text-yellow-600 font-medium">${rl}</td><td class="px-4 py-2 text-center"><div class="flex items-center justify-center gap-2"><div class="w-16 bg-gray-200 rounded-full h-2"><div class="bg-green-500 h-2 rounded-full" style="width:${rpct}%"></div></div><span class="text-xs">${rpct}%</span></div></td></tr>`;
+    });
+  });
+}
+
+function drawPie(present, absent, leave){
+  const svg = document.getElementById('pieChart');
+  if(!svg) return;
+  const total = present+absent+leave;
+  if(total===0){
+    svg.innerHTML='<text x="125" y="130" text-anchor="middle" fill="#9ca3af" font-family="Sarabun" font-size="14">ยังไม่มีข้อมูล</text>';
+    return;
+  }
+  const cx=125,cy=125,r=100;
+  let html='';
+  const data = [
+    {val:present, color:'#22c55e'},
+    {val:absent, color:'#ef4444'},
+    {val:leave, color:'#eab308'}
+  ];
+  let cumAngle = -Math.PI/2;
+  data.forEach(d=>{
+    if(d.val===0) return;
+    const angle = (d.val/total)*Math.PI*2;
+    const x1 = cx+r*Math.cos(cumAngle);
+    const y1 = cy+r*Math.sin(cumAngle);
+    const x2 = cx+r*Math.cos(cumAngle+angle);
+    const y2 = cy+r*Math.sin(cumAngle+angle);
+    const large = angle>Math.PI?1:0;
+    html+=`<path class="pie-segment" d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${d.color}" opacity="0.85"/>`;
+    // Label
+    const midAngle = cumAngle+angle/2;
+    const lx = cx+(r*0.6)*Math.cos(midAngle);
+    const ly = cy+(r*0.6)*Math.sin(midAngle);
+    const pct = Math.round((d.val/total)*100);
+    html+=`<text x="${lx}" y="${ly}" text-anchor="middle" fill="white" font-family="Kanit" font-size="14" font-weight="600">${pct}%</text>`;
+    cumAngle+=angle;
+  });
+  svg.innerHTML=html;
+}
+
+// ============ REPORTS ============
+function updateReportRooms(){
+  const level = document.getElementById('rptLevel').value;
+  const sel = document.getElementById('rptRoom');
+  sel.innerHTML='<option value="">ทุกห้อง</option>';
+  if(level){
+    getRooms(level).forEach(r=>{sel.innerHTML+=`<option value="${r}">${r}</option>`;});
+  }
+}
+
+function generateReport(){
+  const level = document.getElementById('rptLevel')?.value;
+  const room = document.getElementById('rptRoom')?.value;
+  let students = getStudents();
+  if(level) students = students.filter(s=>s.level===level);
+  if(room) students = students.filter(s=>s.room===room);
+  const attRecs = getAttendanceRecords();
+
+  // Header
+  const header = document.getElementById('reportHeader');
+  header.innerHTML='<th class="px-3 py-2 text-left">วันที่</th><th class="px-3 py-2 text-center">ทั้งหมด</th><th class="px-3 py-2 text-center text-green-600">มา</th><th class="px-3 py-2 text-center text-red-600">ไม่มา</th><th class="px-3 py-2 text-center text-yellow-600">ลา</th><th class="px-3 py-2 text-center">%มา</th>';
+
+  const body = document.getElementById('reportBody');
+  body.innerHTML='';
+  const chartEl = document.getElementById('reportBarChart');
+  chartEl.innerHTML='';
+
+  VALID_DATES.forEach(d=>{
+    const dayAtt = attRecs.filter(a=>a.date===d && a.period==='assembly' && students.some(s=>s.__backendId===a.student_id));
+    const p = dayAtt.filter(a=>a.status==='present').length;
+    const ab = dayAtt.filter(a=>a.status==='absent').length;
+    const lv = dayAtt.filter(a=>a.status==='leave').length;
+    const total = students.length||1;
+    const pct = Math.round((p/total)*100);
+
+    body.innerHTML+=`<tr class="border-b"><td class="px-3 py-2 font-medium">${DATE_LABELS[d]}</td><td class="px-3 py-2 text-center">${students.length}</td><td class="px-3 py-2 text-center text-green-600 font-bold">${p}</td><td class="px-3 py-2 text-center text-red-600 font-bold">${ab}</td><td class="px-3 py-2 text-center text-yellow-600 font-bold">${lv}</td><td class="px-3 py-2 text-center">${pct}%</td></tr>`;
+
+    chartEl.innerHTML+=`<div><div class="flex items-center gap-3 mb-1"><span class="w-16 text-xs font-sarabun font-medium">${DATE_LABELS[d]}</span><span class="text-xs text-gray-400">${p}/${students.length}</span></div><div class="flex gap-0.5 h-5 rounded overflow-hidden bg-gray-100">${p?`<div class="bg-green-500 transition-all" style="width:${(p/total)*100}%"></div>`:''}${ab?`<div class="bg-red-500 transition-all" style="width:${(ab/total)*100}%"></div>`:''}${lv?`<div class="bg-yellow-400 transition-all" style="width:${(lv/total)*100}%"></div>`:''}</div></div>`;
+  });
+}
+
+function getPeriodLabel(periodId){
+  return PERIODS.find(period => period.id === periodId)?.label || periodId;
+}
+
+function getPeriodSortIndex(periodId){
+  const index = PERIODS.findIndex(period => period.id === periodId);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+function getDashboardSnapshot(attRecs, targetDate){
+  const recordsForDate = attRecs.filter(record => record.date === targetDate);
+  if(recordsForDate.length === 0){
+    return { date: targetDate, period: 'assembly', records: [] };
+  }
+
+  const periodsForDate = [...new Set(recordsForDate.map(record => record.period))]
+    .sort((a, b) => getPeriodSortIndex(b) - getPeriodSortIndex(a));
+  const latestPeriod = periodsForDate[0];
+
+  return {
+    date: targetDate,
+    period: latestPeriod,
+    records: recordsForDate.filter(record => record.period === latestPeriod)
+  };
+}
+
+function renderDashboard(){
+  const students = getStudents();
+  const attRecs = getAttendanceRecords();
+  const availableDates = VALID_DATES.filter(date => attRecs.some(record => record.date === date));
+  const snapshotDate = availableDates.length ? availableDates[availableDates.length - 1] : VALID_DATES[0];
+  const snapshot = getDashboardSnapshot(attRecs, snapshotDate);
+
+  document.getElementById('statTotalStudents').textContent = students.length;
+
+  const present = snapshot.records.filter(record => record.status === 'present').length;
+  const absent = snapshot.records.filter(record => record.status === 'absent').length;
+  const leave = snapshot.records.filter(record => record.status === 'leave').length;
+
+  document.getElementById('statPresent').textContent = present;
+  document.getElementById('statAbsent').textContent = absent;
+  document.getElementById('statLeave').textContent = leave;
+
+  drawPie(present, absent, leave);
+
+  const barEl = document.getElementById('barChart');
+  barEl.innerHTML = '';
+  VALID_DATES.forEach(date => {
+    const daySnapshot = getDashboardSnapshot(attRecs, date);
+    const dayPresent = daySnapshot.records.filter(record => record.status === 'present').length;
+    const total = students.length || 1;
+    const pct = Math.round((dayPresent / total) * 100);
+    barEl.innerHTML += `<div class="flex items-center gap-3"><span class="w-16 text-xs font-sarabun text-gray-600">${DATE_LABELS[date]}</span><div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden"><div class="bg-green-500 h-full rounded-full flex items-center justify-end pr-2 transition-all" style="width:${pct}%"><span class="text-xs text-white font-medium">${pct}%</span></div></div></div>`;
+  });
+
+  const roomBody = document.getElementById('roomSummaryBody');
+  roomBody.innerHTML = '';
+  const levels = ['ม.1', 'ม.4'];
+  levels.forEach(level => {
+    const rooms = getRooms(level);
+    rooms.forEach(room => {
+      const roomStudents = students.filter(student => student.level === level && String(student.room) === String(room));
+      if(roomStudents.length === 0) return;
+
+      const roomAtt = snapshot.records.filter(record => roomStudents.some(student => student.__backendId === record.student_id));
+      const roomPresent = roomAtt.filter(record => record.status === 'present').length;
+      const roomAbsent = roomAtt.filter(record => record.status === 'absent').length;
+      const roomLeave = roomAtt.filter(record => record.status === 'leave').length;
+      const presentPct = roomStudents.length ? Math.round((roomPresent / roomStudents.length) * 100) : 0;
+
+      roomBody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="px-4 py-2">${level}/${room}</td><td class="px-4 py-2 text-center">${roomStudents.length}</td><td class="px-4 py-2 text-center text-green-600 font-medium">${roomPresent}</td><td class="px-4 py-2 text-center text-red-600 font-medium">${roomAbsent}</td><td class="px-4 py-2 text-center text-yellow-600 font-medium">${roomLeave}</td><td class="px-4 py-2 text-center"><div class="flex items-center justify-center gap-2"><div class="w-16 bg-gray-200 rounded-full h-2"><div class="bg-green-500 h-2 rounded-full" style="width:${presentPct}%"></div></div><span class="text-xs">${presentPct}%</span></div></td></tr>`;
+    });
+  });
+}
+
+function generateReport(){
+  const level = document.getElementById('rptLevel')?.value;
+  const room = document.getElementById('rptRoom')?.value;
+  let students = getStudents();
+  if(level) students = students.filter(student => student.level === level);
+  if(room) students = students.filter(student => String(student.room) === String(room));
+
+  const studentMap = new Map(students.map(student => [student.__backendId, student]));
+  const attRecs = getAttendanceRecords().filter(attendance => studentMap.has(attendance.student_id));
+
+  const header = document.getElementById('reportHeader');
+  const body = document.getElementById('reportBody');
+  const chartEl = document.getElementById('reportBarChart');
+  const periodBody = document.getElementById('periodReportBody');
+  const periodEmpty = document.getElementById('periodReportEmpty');
+
+  header.innerHTML = '<th class="px-3 py-2 text-left">วันที่</th><th class="px-3 py-2 text-center">จำนวนรายการเช็กชื่อ</th><th class="px-3 py-2 text-center text-green-600">มา</th><th class="px-3 py-2 text-center text-red-600">ไม่มา</th><th class="px-3 py-2 text-center text-yellow-600">ลา</th><th class="px-3 py-2 text-center">%มา</th>';
+  body.innerHTML = '';
+  chartEl.innerHTML = '';
+  if(periodBody) periodBody.innerHTML = '';
+  if(periodEmpty) periodEmpty.classList.add('hidden');
+
+  VALID_DATES.forEach(date => {
+    const dayAtt = attRecs.filter(attendance => attendance.date === date);
+    const present = dayAtt.filter(attendance => attendance.status === 'present').length;
+    const absent = dayAtt.filter(attendance => attendance.status === 'absent').length;
+    const leave = dayAtt.filter(attendance => attendance.status === 'leave').length;
+    const total = dayAtt.length || 1;
+    const pct = Math.round((present / total) * 100);
+
+    body.innerHTML += `<tr class="border-b"><td class="px-3 py-2 font-medium">${DATE_LABELS[date] || date}</td><td class="px-3 py-2 text-center">${dayAtt.length}</td><td class="px-3 py-2 text-center text-green-600 font-bold">${present}</td><td class="px-3 py-2 text-center text-red-600 font-bold">${absent}</td><td class="px-3 py-2 text-center text-yellow-600 font-bold">${leave}</td><td class="px-3 py-2 text-center">${pct}%</td></tr>`;
+    chartEl.innerHTML += `<div><div class="flex items-center gap-3 mb-1"><span class="w-16 text-xs font-sarabun font-medium">${DATE_LABELS[date] || date}</span><span class="text-xs text-gray-400">${present}/${dayAtt.length || 0}</span></div><div class="flex gap-0.5 h-5 rounded overflow-hidden bg-gray-100">${present ? `<div class="bg-green-500 transition-all" style="width:${(present / total) * 100}%"></div>` : ''}${absent ? `<div class="bg-red-500 transition-all" style="width:${(absent / total) * 100}%"></div>` : ''}${leave ? `<div class="bg-yellow-400 transition-all" style="width:${(leave / total) * 100}%"></div>` : ''}</div></div>`;
+  });
+
+  if(body.innerHTML === ''){
+    body.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-gray-400">ยังไม่มีข้อมูลในเงื่อนไขนี้</td></tr>';
+  }
+
+  const groupedAbsences = new Map();
+  attRecs
+    .filter(attendance => attendance.status === 'absent')
+    .forEach(attendance => {
+      const student = studentMap.get(attendance.student_id);
+      if(!student) return;
+
+      const roomLabel = `${student.level}/${student.room}`;
+      const key = `${attendance.date}__${attendance.period}__${roomLabel}`;
+      const current = groupedAbsences.get(key) || {
+        date: attendance.date,
+        period: attendance.period,
+        room: roomLabel,
+        students: []
+      };
+
+      current.students.push(`${student.number} ${student.first_name} ${student.last_name}`);
+      groupedAbsences.set(key, current);
+    });
+
+  const detailedRows = Array.from(groupedAbsences.values()).sort((a, b) => {
+    if(a.date !== b.date) return a.date.localeCompare(b.date);
+    if(a.room !== b.room) return a.room.localeCompare(b.room, 'th');
+    return a.period.localeCompare(b.period, 'th');
+  });
+
+  if(periodBody){
+    if(detailedRows.length === 0){
+      if(periodEmpty) periodEmpty.classList.remove('hidden');
+    } else {
+      detailedRows.forEach(row => {
+        periodBody.innerHTML += `<tr class="border-b align-top"><td class="px-3 py-2 font-medium">${DATE_LABELS[row.date] || row.date}</td><td class="px-3 py-2">${getPeriodLabel(row.period)}</td><td class="px-3 py-2">${row.room}</td><td class="px-3 py-2">${row.students.join('<br>')}</td></tr>`;
+      });
+    }
+  }
+}
+
+// Override with clearer UX and error handling so save failures are visible.
+async function saveAttendanceRecordWithRetry(factory, attempts = 3){
+  let lastResult = null;
+  for(let attempt = 1; attempt <= attempts; attempt++){
+    try{
+      const result = await factory();
+      if(result?.isOk) return result;
+      lastResult = result;
+    }catch(error){
+      lastResult = { isOk: false, error: error?.message || String(error) };
+    }
+    if(attempt < attempts){
+      await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+    }
+  }
+  return lastResult || { isOk: false, error: 'Attendance save failed' };
+}
+
+function generateReport(){
+  const level = document.getElementById('rptLevel')?.value;
+  const room = document.getElementById('rptRoom')?.value;
+  const dateSelect = document.getElementById('rptDate');
+  const periodSelect = document.getElementById('rptPeriod');
+  const selectedDate = dateSelect?.value || '';
+  const selectedPeriod = periodSelect?.value || '';
+
+  if(dateSelect && dateSelect.options.length <= 1){
+    dateSelect.innerHTML = '<option value="">ทุกวัน</option>' + VALID_DATES.map(date => `<option value="${date}">${DATE_LABELS[date] || date}</option>`).join('');
+  }
+
+  let students = getStudents();
+  if(level) students = students.filter(student => student.level === level);
+  if(room) students = students.filter(student => String(student.room) === String(room));
+
+  const studentMap = new Map(students.map(student => [student.__backendId, student]));
+  const attRecs = getAttendanceRecords().filter(attendance =>
+    studentMap.has(attendance.student_id) &&
+    (!selectedPeriod || attendance.period === selectedPeriod)
+  );
+  const reportDates = selectedDate ? [selectedDate] : VALID_DATES;
+
+  const header = document.getElementById('reportHeader');
+  const body = document.getElementById('reportBody');
+  const chartEl = document.getElementById('reportBarChart');
+  const periodBody = document.getElementById('periodReportBody');
+  const periodEmpty = document.getElementById('periodReportEmpty');
+  const periodHeadRow = periodBody?.closest('table')?.querySelector('thead tr');
+
+  if(header){
+    header.innerHTML = '<th class="px-3 py-2 text-left">วันที่</th><th class="px-3 py-2 text-center">จำนวนรายการเช็กชื่อ</th><th class="px-3 py-2 text-center text-green-600">มา</th><th class="px-3 py-2 text-center text-red-600">ขาด</th><th class="px-3 py-2 text-center text-yellow-600">ลา</th><th class="px-3 py-2 text-center">%มา</th>';
+  }
+  if(periodHeadRow){
+    periodHeadRow.innerHTML = '<th class="px-3 py-2 text-left">วันที่</th><th class="px-3 py-2 text-left">คาบ</th><th class="px-3 py-2 text-left">ห้อง</th><th class="px-3 py-2 text-left text-red-600">ขาด</th><th class="px-3 py-2 text-left text-yellow-600">ลา</th>';
+  }
+  if(body) body.innerHTML = '';
+  if(chartEl) chartEl.innerHTML = '';
+  if(periodBody) periodBody.innerHTML = '';
+  if(periodEmpty) periodEmpty.classList.add('hidden');
+
+  reportDates.forEach(date => {
+    const dayAtt = attRecs.filter(attendance => attendance.date === date);
+    const present = dayAtt.filter(attendance => attendance.status === 'present').length;
+    const absent = dayAtt.filter(attendance => attendance.status === 'absent').length;
+    const leave = dayAtt.filter(attendance => attendance.status === 'leave').length;
+    const total = dayAtt.length || 1;
+    const pct = Math.round((present / total) * 100);
+
+    if(body){
+      body.innerHTML += `<tr class="border-b"><td class="px-3 py-2 font-medium">${DATE_LABELS[date] || date}</td><td class="px-3 py-2 text-center">${dayAtt.length}</td><td class="px-3 py-2 text-center text-green-600 font-bold">${present}</td><td class="px-3 py-2 text-center text-red-600 font-bold">${absent}</td><td class="px-3 py-2 text-center text-yellow-600 font-bold">${leave}</td><td class="px-3 py-2 text-center">${pct}%</td></tr>`;
+    }
+
+    if(chartEl){
+      chartEl.innerHTML += `<div><div class="flex items-center gap-3 mb-1"><span class="w-16 text-xs font-sarabun font-medium">${DATE_LABELS[date] || date}</span><span class="text-xs text-gray-400">${present}/${dayAtt.length || 0}</span></div><div class="flex gap-0.5 h-5 rounded overflow-hidden bg-gray-100">${present ? `<div class="bg-green-500 transition-all" style="width:${(present / total) * 100}%"></div>` : ''}${absent ? `<div class="bg-red-500 transition-all" style="width:${(absent / total) * 100}%"></div>` : ''}${leave ? `<div class="bg-yellow-400 transition-all" style="width:${(leave / total) * 100}%"></div>` : ''}</div></div>`;
+    }
+  });
+
+  if(body && body.innerHTML === ''){
+    body.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-gray-400">ยังไม่มีข้อมูลในเงื่อนไขนี้</td></tr>';
+  }
+
+  const groupedPeriods = new Map();
+  attRecs
+    .filter(attendance => !selectedDate || attendance.date === selectedDate)
+    .forEach(attendance => {
+      const student = studentMap.get(attendance.student_id);
+      if(!student) return;
+
+      const roomLabel = `${student.level}/${student.room}`;
+      const key = `${attendance.date}__${attendance.period}__${roomLabel}`;
+      const current = groupedPeriods.get(key) || {
+        date: attendance.date,
+        period: attendance.period,
+        room: roomLabel,
+        absentStudents: [],
+        leaveStudents: []
+      };
+
+      const label = {
+        sortNumber: Number(student.number) || 9999,
+        text: `${student.number} ${student.first_name} ${student.last_name}`
+      };
+      if(attendance.status === 'absent'){
+        current.absentStudents.push(label);
+      }
+      if(attendance.status === 'leave'){
+        current.leaveStudents.push(label);
+      }
+
+      groupedPeriods.set(key, current);
+    });
+
+  const detailedRows = Array.from(groupedPeriods.values())
+    .filter(row => row.absentStudents.length || row.leaveStudents.length)
+    .sort((a, b) => {
+      if(a.date !== b.date) return a.date.localeCompare(b.date);
+      if(a.room !== b.room) return a.room.localeCompare(b.room, 'th');
+      return a.period.localeCompare(b.period, 'th');
+    });
+
+  if(periodBody){
+    if(detailedRows.length === 0){
+      if(periodEmpty) periodEmpty.classList.remove('hidden');
+    } else {
+      detailedRows.forEach(row => {
+        const absentText = row.absentStudents
+          .sort((a, b) => a.sortNumber - b.sortNumber || a.text.localeCompare(b.text, 'th'))
+          .map(item => item.text)
+          .join('<br>');
+        const leaveText = row.leaveStudents
+          .sort((a, b) => a.sortNumber - b.sortNumber || a.text.localeCompare(b.text, 'th'))
+          .map(item => item.text)
+          .join('<br>');
+        periodBody.innerHTML += `<tr class="border-b align-top"><td class="px-3 py-2 font-medium">${DATE_LABELS[row.date] || row.date}</td><td class="px-3 py-2">${getPeriodLabel(row.period)}</td><td class="px-3 py-2">${row.room}</td><td class="px-3 py-2">${absentText || '-'}</td><td class="px-3 py-2">${leaveText || '-'}</td></tr>`;
+      });
+    }
+  }
+}
+
+async function saveAttendance(){
+  const dateEl = document.getElementById('attDate');
+  const periodEl = document.getElementById('attPeriod');
+  const btn = document.getElementById('saveAttBtn');
+  const date = dateEl?.value;
+  const period = periodEl?.value;
+  const entries = Object.entries(localAttendance || {}).filter(([, data]) => data?.status && data.status !== 'none');
+
+  if(!date || !period){
+    showToast('กรุณาเลือกวันที่และคาบเรียนก่อนบันทึก', 'warning');
+    return;
+  }
+
+  if(entries.length === 0){
+    showToast('กรุณาเลือกสถานะนักเรียนอย่างน้อย 1 คนก่อนบันทึก', 'warning');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...';
+    lucide.createIcons();
+  }
+
+  try{
+    let saved = 0;
+    const errors = [];
+    const intended = new Map(entries.map(([sid, data]) => [sid, data.status]));
+
+    for(let index = 0; index < entries.length; index++){
+      const [sid, data] = entries[index];
+
+      if(btn){
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก ${index + 1}/${entries.length}`;
+        lucide.createIcons();
+      }
+
+      const result = await saveAttendanceRecordWithRetry(() => {
+        if(data.record){
+          return window.dataSdk.update({
+            ...data.record,
+            type: 'attendance',
+            status: data.status,
+            period,
+            period_code: period
+          });
+        }
+
+        return window.dataSdk.create({
+          type:'attendance',
+          date,
+          period,
+          period_code: period,
+          status:data.status,
+          student_id:sid,
+          teacher_id:currentUser?.backendId || 'admin'
+        });
+      });
+
+      if(result?.isOk){
+        saved++;
+      } else {
+        errors.push(`นักเรียน ${sid}: ${result?.error || 'Attendance save failed'}`);
+      }
+    }
+
+    if(btn){
+      btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> ตรวจสอบข้อมูลที่บันทึก...';
+      lucide.createIcons();
+    }
+
+    try{
+      await window.dataSdk.refresh?.();
+      const missing = [...intended.entries()].filter(([sid, status]) => {
+        const record = getAttendanceRecords().find(item => item.student_id === sid && item.date === date && item.period === period);
+        return !record || record.status !== status;
+      });
+
+      for(const [sid, status] of missing){
+        const retryResult = await saveAttendanceRecordWithRetry(() => window.dataSdk.create({
+          type:'attendance',
+          date,
+          period,
+          period_code: period,
+          status,
+          student_id:sid,
+          teacher_id:currentUser?.backendId || 'admin'
+        }), 2);
+
+        if(retryResult?.isOk){
+          saved++;
+        } else {
+          errors.push(`ยืนยันการบันทึกไม่ผ่าน ${sid}`);
+        }
+      }
+
+      if(missing.length){
+        await window.dataSdk.refresh?.();
+      }
+    }catch(verifyError){
+      console.warn('Attendance verification skipped', verifyError);
+    }
+
+    if(errors.length){
+      console.error('Attendance save errors:', errors);
+      showToast(`บันทึกได้ ${saved}/${entries.length} รายการ`, 'error');
+    } else {
+      attendanceDirty = false;
+      showToast(`บันทึกลง Google Sheet สำเร็จ ${saved} รายการ`);
+      window.dataSdk.refresh?.()
+        .then(()=>loadAttendance())
+        .catch((error)=>console.warn('Background refresh failed', error));
+    }
+  }catch(error){
+    console.error('saveAttendance failed', error);
+    showToast(`บันทึกไม่สำเร็จ: ${error.message || error}`, 'error');
+  }finally{
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> บันทึก';
+      lucide.createIcons();
+    }
+  }
+}
+
+function escapeHtml(value){
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function setupBehaviorFeature(){
+  const nav = document.getElementById('sidebarNav');
+  if(nav && !document.getElementById('behaviorNavBtn')){
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'behaviorNavBtn';
+    btn.dataset.nav = 'behavior';
+    btn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left';
+    btn.setAttribute('onclick', "navigateTo('behavior')");
+    btn.innerHTML = '<i data-lucide="notebook-pen" class="w-4 h-4"></i> บันทึกพฤติกรรม';
+    nav.appendChild(btn);
+  }
+
+  const mainContent = document.getElementById('mainContent');
+  if(mainContent && !document.getElementById('page-behavior')){
+    mainContent.insertAdjacentHTML('beforeend', `
+      <div id="page-behavior" class="page-content hidden p-6 fade-in">
+        <div class="mb-6">
+          <h1 class="font-kanit text-2xl font-bold text-navy">บันทึกพฤติกรรมนักเรียน</h1>
+          <p class="text-gray-500 font-sarabun text-sm">บันทึกเหตุการณ์หรือพฤติกรรมที่ครูพบเห็นระหว่างการเรียนปรับพื้นฐาน</p>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-6">
+          <div class="bg-white rounded-xl p-6 shadow-sm">
+            <h3 class="font-kanit font-semibold text-navy mb-4">แบบฟอร์มบันทึก</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">วันที่</label>
+                <select id="behaviorDate" class="w-full px-3 py-2 border rounded-lg font-sarabun"></select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ระดับชั้น</label>
+                <select id="behaviorLevel" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+                  <option value="ม.1">ม.1</option>
+                  <option value="ม.4">ม.4</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ห้อง</label>
+                <select id="behaviorRoom" class="w-full px-3 py-2 border rounded-lg font-sarabun"></select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">นักเรียน</label>
+                <select id="behaviorStudent" class="w-full px-3 py-2 border rounded-lg font-sarabun"></select>
+              </div>
+            </div>
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">รายละเอียดพฤติกรรม</label>
+              <textarea id="behaviorDetails" rows="6" class="w-full px-4 py-3 border rounded-lg font-sarabun" placeholder="เช่น ไม่เข้าเรียนคาบบ่าย ออกจากห้องโดยไม่ได้รับอนุญาต หรือให้ความร่วมมือดีในการทำกิจกรรม"></textarea>
+            </div>
+            <div class="mt-4 flex items-center gap-3">
+              <button id="saveBehaviorBtn" type="button" class="px-4 py-2 bg-navy text-white rounded-lg font-sarabun text-sm hover:bg-royal transition flex items-center gap-2">
+                <i data-lucide="save" class="w-4 h-4"></i> บันทึกพฤติกรรม
+              </button>
+              <p class="text-xs text-gray-400 font-sarabun">ระบบจะบันทึกลง Google Sheet ชีต <span class="font-medium">behavior</span></p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h3 class="font-kanit font-semibold text-navy">รายการล่าสุด</h3>
+              <span class="text-xs text-gray-400 font-sarabun" id="behaviorCountLabel">0 รายการ</span>
+            </div>
+            <div id="behaviorHistory" class="space-y-3"></div>
+            <div id="behaviorEmpty" class="hidden p-6 text-center text-gray-400 font-sarabun">ยังไม่มีบันทึกพฤติกรรมในเงื่อนไขนี้</div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  const levelEl = document.getElementById('behaviorLevel');
+  const roomEl = document.getElementById('behaviorRoom');
+  const studentEl = document.getElementById('behaviorStudent');
+  const dateEl = document.getElementById('behaviorDate');
+  const saveBtn = document.getElementById('saveBehaviorBtn');
+
+  if(dateEl && !dateEl.dataset.ready){
+    dateEl.innerHTML = VALID_DATES.map(date => `<option value="${date}">${DATE_LABELS[date] || date}</option>`).join('');
+    dateEl.value = VALID_DATES[VALID_DATES.length - 1] || '';
+    dateEl.dataset.ready = 'true';
+    dateEl.addEventListener('change', renderBehaviorHistory);
+  }
+
+  if(levelEl && !levelEl.dataset.ready){
+    levelEl.dataset.ready = 'true';
+    levelEl.addEventListener('change', ()=>{
+      updateBehaviorRoomOptions();
+      updateBehaviorStudentOptions();
+      renderBehaviorHistory();
+    });
+  }
+
+  if(roomEl && !roomEl.dataset.ready){
+    roomEl.dataset.ready = 'true';
+    roomEl.addEventListener('change', ()=>{
+      updateBehaviorStudentOptions();
+      renderBehaviorHistory();
+    });
+  }
+
+  if(studentEl && !studentEl.dataset.ready){
+    studentEl.dataset.ready = 'true';
+    studentEl.addEventListener('change', renderBehaviorHistory);
+  }
+
+  if(saveBtn && !saveBtn.dataset.ready){
+    saveBtn.dataset.ready = 'true';
+    saveBtn.addEventListener('click', saveBehaviorRecord);
+  }
+
+  if(currentUser?.role === 'teacher'){
+    if(levelEl && currentUser.level) levelEl.value = currentUser.level;
+    updateBehaviorRoomOptions();
+    if(roomEl && currentUser.room) roomEl.value = String(currentUser.room);
+    if(levelEl) levelEl.disabled = true;
+    if(roomEl) roomEl.disabled = true;
+  } else {
+    if(levelEl) levelEl.disabled = false;
+    if(roomEl) roomEl.disabled = false;
+    updateBehaviorRoomOptions();
+  }
+  updateBehaviorStudentOptions();
+  renderBehaviorHistory();
+  lucide.createIcons();
+}
+
+function updateBehaviorRoomOptions(){
+  const levelEl = document.getElementById('behaviorLevel');
+  const roomEl = document.getElementById('behaviorRoom');
+  if(!levelEl || !roomEl) return;
+  const level = levelEl.value || 'ม.1';
+  roomEl.innerHTML = getRooms(level).map(room => `<option value="${room}">${room}</option>`).join('');
+}
+
+function updateBehaviorStudentOptions(){
+  const level = document.getElementById('behaviorLevel')?.value;
+  const room = document.getElementById('behaviorRoom')?.value;
+  const studentEl = document.getElementById('behaviorStudent');
+  if(!studentEl || !level || !room) return;
+
+  const students = getStudents()
+    .filter(student => student.level === level && String(student.room) === String(room))
+    .sort((a, b) => Number(a.number || 0) - Number(b.number || 0) || `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`, 'th'));
+
+  if(students.length === 0){
+    studentEl.innerHTML = '<option value="">ไม่พบนักเรียนในห้องนี้</option>';
+    studentEl.disabled = true;
+    return;
+  }
+
+  const previousValue = studentEl.value;
+  studentEl.disabled = false;
+  studentEl.innerHTML = students.map(student => {
+    const label = `${student.number} ${student.first_name} ${student.last_name}`.trim();
+    return `<option value="${student.__backendId}">${escapeHtml(label)}</option>`;
+  }).join('');
+
+  if(students.some(student => student.__backendId === previousValue)){
+    studentEl.value = previousValue;
+  }
+}
+
+function renderBehaviorHistory(){
+  const historyEl = document.getElementById('behaviorHistory');
+  const emptyEl = document.getElementById('behaviorEmpty');
+  const countEl = document.getElementById('behaviorCountLabel');
+  if(!historyEl || !emptyEl || !countEl) return;
+
+  const date = document.getElementById('behaviorDate')?.value || '';
+  const level = document.getElementById('behaviorLevel')?.value || '';
+  const room = document.getElementById('behaviorRoom')?.value || '';
+  const studentId = document.getElementById('behaviorStudent')?.value || '';
+
+  const studentMap = new Map(getStudents().map(student => [student.__backendId, student]));
+  const records = getBehaviorRecords()
+    .filter(record => !date || record.date === date)
+    .map(record => {
+      const student = studentMap.get(record.student_id);
+      const fallbackName = String(record.student_name || '').trim();
+      return {
+        record,
+        student,
+        displayName: student
+          ? `${student.number} ${student.first_name} ${student.last_name}`.trim()
+          : `${record.number || '-'} ${fallbackName || record.student_id}`.trim(),
+        displayLevel: student?.level || record.level || '',
+        displayRoom: student?.room || record.room || '',
+        sortNumber: Number(student?.number || record.number || 9999)
+      };
+    })
+    .filter(item => !level || item.displayLevel === level)
+    .filter(item => !room || String(item.displayRoom) === String(room))
+    .filter(item => !studentId || item.record.student_id === studentId)
+    .sort((a, b) => {
+      if(a.record.date !== b.record.date) return b.record.date.localeCompare(a.record.date);
+      return a.sortNumber - b.sortNumber || a.displayName.localeCompare(b.displayName, 'th');
+    })
+    .slice(0, 30);
+
+  countEl.textContent = `${records.length} รายการ`;
+  historyEl.innerHTML = '';
+
+  if(records.length === 0){
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+
+  emptyEl.classList.add('hidden');
+  records.forEach(({ record, displayName, displayLevel, displayRoom }) => {
+    historyEl.innerHTML += `
+      <div class="rounded-xl border border-slate-200 p-4">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <p class="font-kanit font-medium text-navy">${escapeHtml(displayName)}</p>
+            <p class="text-xs text-gray-400 font-sarabun">${escapeHtml((DATE_LABELS[record.date] || record.date) + ' • ' + student.level + '/' + student.room)}</p>
+          </div>
+          <span class="text-xs text-slate-500 font-sarabun">${escapeHtml(record.teacher || '-')}</span>
+        </div>
+        <p class="text-sm text-slate-700 font-sarabun whitespace-pre-wrap">${escapeHtml(record.details || '-')}</p>
+      </div>
+    `;
+  });
+}
+
+async function saveBehaviorRecord(){
+  const date = document.getElementById('behaviorDate')?.value;
+  const studentId = document.getElementById('behaviorStudent')?.value;
+  const detailsEl = document.getElementById('behaviorDetails');
+  const btn = document.getElementById('saveBehaviorBtn');
+  const details = detailsEl?.value.trim();
+
+  if(!date){
+    showToast('กรุณาเลือกวันที่ก่อนบันทึก', 'warning');
+    return;
+  }
+  if(!studentId){
+    showToast('กรุณาเลือกนักเรียนก่อนบันทึก', 'warning');
+    return;
+  }
+  if(!details){
+    showToast('กรุณากรอกรายละเอียดพฤติกรรม', 'warning');
+    detailsEl?.focus();
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...';
+    lucide.createIcons();
+  }
+
+  try{
+    const student = getStudents().find(item => item.__backendId === studentId);
+    const result = await window.dataSdk.create({
+      type: 'behavior',
+      student_id: studentId,
+      date,
+      teacher: currentUser?.name || 'Admin',
+      details,
+      student_name: student ? `${student.first_name} ${student.last_name}`.trim() : '',
+      number: student?.number || '',
+      level: student?.level || '',
+      room: student?.room || ''
+    });
+
+    if(!result?.isOk){
+      throw new Error(result?.error || 'Behavior save failed');
+    }
+
+    detailsEl.value = '';
+    showToast('บันทึกพฤติกรรมนักเรียนสำเร็จ');
+    window.dataSdk.refresh?.()
+      .then(()=>{
+        updateBehaviorStudentOptions();
+        renderBehaviorHistory();
+      })
+      .catch((error)=>console.warn('Behavior refresh failed', error));
+  }catch(error){
+    console.error('saveBehaviorRecord failed', error);
+    showToast(`บันทึกพฤติกรรมไม่สำเร็จ: ${error.message || error}`, 'error');
+  }finally{
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> บันทึกพฤติกรรม';
+      lucide.createIcons();
+    }
+  }
+}
+
+function setupBehaviorReportSection(){
+  const reportsPage = document.getElementById('page-reports');
+  if(!reportsPage || document.getElementById('behaviorReportBody')) return;
+
+  reportsPage.insertAdjacentHTML('beforeend', `
+    <div class="bg-white rounded-xl p-6 shadow-sm mt-6">
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 class="font-kanit font-semibold text-navy">รายงานพฤติกรรมนักเรียน</h3>
+          <p class="text-sm text-gray-500 font-sarabun">แสดงบันทึกพฤติกรรมตามตัวกรองวันที่ ชั้น และห้อง</p>
+        </div>
+        <span class="text-xs text-gray-400 font-sarabun" id="behaviorReportCount">0 รายการ</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm font-sarabun">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-3 py-2 text-left">วันที่</th>
+              <th class="px-3 py-2 text-left">ชื่อ-สกุล</th>
+              <th class="px-3 py-2 text-left">ห้อง</th>
+              <th class="px-3 py-2 text-left">พฤติกรรม</th>
+              <th class="px-3 py-2 text-left">ผู้บันทึก</th>
+            </tr>
+          </thead>
+          <tbody id="behaviorReportBody"></tbody>
+        </table>
+      </div>
+      <div id="behaviorReportEmpty" class="hidden p-6 text-center text-gray-400 font-sarabun">ยังไม่มีข้อมูลพฤติกรรมในเงื่อนไขนี้</div>
+    </div>
+  `);
+}
+
+function renderBehaviorReport(){
+  const body = document.getElementById('behaviorReportBody');
+  const empty = document.getElementById('behaviorReportEmpty');
+  const count = document.getElementById('behaviorReportCount');
+  if(!body || !empty || !count) return;
+
+  const selectedDate = document.getElementById('rptDate')?.value || '';
+  const selectedLevel = document.getElementById('rptLevel')?.value || '';
+  const selectedRoom = document.getElementById('rptRoom')?.value || '';
+
+  const studentMap = new Map(getStudents().map(student => [student.__backendId, student]));
+  const rows = getBehaviorRecords()
+    .map(record => ({ record, student: studentMap.get(record.student_id) }))
+    .filter(item => item.student)
+    .filter(item => !selectedDate || item.record.date === selectedDate)
+    .filter(item => !selectedLevel || item.student.level === selectedLevel)
+    .filter(item => !selectedRoom || String(item.student.room) === String(selectedRoom))
+    .sort((a, b) => {
+      if(a.record.date !== b.record.date) return b.record.date.localeCompare(a.record.date);
+      if(a.student.level !== b.student.level) return a.student.level.localeCompare(b.student.level, 'th');
+      if(String(a.student.room) !== String(b.student.room)) return String(a.student.room).localeCompare(String(b.student.room), 'th');
+      const aNo = Number(a.student.number || 0);
+      const bNo = Number(b.student.number || 0);
+      return aNo - bNo || `${a.student.first_name} ${a.student.last_name}`.localeCompare(`${b.student.first_name} ${b.student.last_name}`, 'th');
+    });
+
+  body.innerHTML = '';
+  count.textContent = `${rows.length} รายการ`;
+
+  if(rows.length === 0){
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  rows.forEach(({ record, student }) => {
+    const studentName = `${student.number} ${student.first_name} ${student.last_name}`.trim();
+    const roomLabel = `${student.level}/${student.room}`;
+    body.innerHTML += `
+      <tr class="border-b align-top">
+        <td class="px-3 py-2 font-medium">${escapeHtml(DATE_LABELS[record.date] || record.date)}</td>
+        <td class="px-3 py-2">${escapeHtml(studentName)}</td>
+        <td class="px-3 py-2">${escapeHtml(roomLabel)}</td>
+        <td class="px-3 py-2 whitespace-pre-wrap">${escapeHtml(record.details || '-')}</td>
+        <td class="px-3 py-2">${escapeHtml(record.teacher || '-')}</td>
+      </tr>
+    `;
+  });
+}
+
+function renderBehaviorHistory(){
+  const historyEl = document.getElementById('behaviorHistory');
+  const emptyEl = document.getElementById('behaviorEmpty');
+  const countEl = document.getElementById('behaviorCountLabel');
+  if(!historyEl || !emptyEl || !countEl) return;
+
+  const date = document.getElementById('behaviorDate')?.value || '';
+  const level = document.getElementById('behaviorLevel')?.value || '';
+  const room = document.getElementById('behaviorRoom')?.value || '';
+  const studentMap = new Map(getStudents().map(student => [student.__backendId, student]));
+
+  const records = getBehaviorRecords()
+    .filter(record => !date || record.date === date)
+    .map(record => {
+      const student = studentMap.get(record.student_id);
+      const displayName = student
+        ? `${student.number} ${student.first_name} ${student.last_name}`.trim()
+        : `${record.number || '-'} ${record.student_name || record.student_id}`.trim();
+      const displayLevel = student?.level || record.level || '';
+      const displayRoom = student?.room || record.room || '';
+      return {
+        record,
+        displayName,
+        displayLevel,
+        displayRoom,
+        sortNumber: Number(student?.number || record.number || 9999)
+      };
+    })
+    .filter(item => !level || item.displayLevel === level)
+    .filter(item => !room || String(item.displayRoom) === String(room))
+    .sort((a, b) => {
+      if(a.record.date !== b.record.date) return b.record.date.localeCompare(a.record.date);
+      return a.sortNumber - b.sortNumber || a.displayName.localeCompare(b.displayName, 'th');
+    })
+    .slice(0, 30);
+
+  countEl.textContent = `${records.length} รายการ`;
+  historyEl.innerHTML = '';
+
+  if(records.length === 0){
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+
+  emptyEl.classList.add('hidden');
+  records.forEach(({ record, displayName, displayLevel, displayRoom }) => {
+    historyEl.innerHTML += `
+      <div class="rounded-xl border border-slate-200 p-4">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <p class="font-kanit font-medium text-navy">${escapeHtml(displayName)}</p>
+            <p class="text-xs text-gray-400 font-sarabun">${escapeHtml((DATE_LABELS[record.date] || record.date) + ' - ' + (displayLevel && displayRoom ? `${displayLevel}/${displayRoom}` : '-'))}</p>
+          </div>
+          <span class="text-xs text-slate-500 font-sarabun">${escapeHtml(record.teacher || '-')}</span>
+        </div>
+        <p class="text-sm text-slate-700 font-sarabun whitespace-pre-wrap">${escapeHtml(record.details || '-')}</p>
+      </div>
+    `;
+  });
+}
+
+function renderBehaviorReport(){
+  const body = document.getElementById('behaviorReportBody');
+  const empty = document.getElementById('behaviorReportEmpty');
+  const count = document.getElementById('behaviorReportCount');
+  if(!body || !empty || !count) return;
+
+  const selectedDate = document.getElementById('rptDate')?.value || '';
+  const selectedLevel = document.getElementById('rptLevel')?.value || '';
+  const selectedRoom = document.getElementById('rptRoom')?.value || '';
+  const studentMap = new Map(getStudents().map(student => [student.__backendId, student]));
+
+  const rows = getBehaviorRecords()
+    .map(record => {
+      const student = studentMap.get(record.student_id);
+      const studentName = student
+        ? `${student.number} ${student.first_name} ${student.last_name}`.trim()
+        : `${record.number || '-'} ${record.student_name || record.student_id}`.trim();
+      const level = student?.level || record.level || '';
+      const room = student?.room || record.room || '';
+      return {
+        record,
+        studentName,
+        roomLabel: level && room ? `${level}/${room}` : '-',
+        level,
+        room,
+        sortNumber: Number(student?.number || record.number || 9999)
+      };
+    })
+    .filter(item => !selectedDate || item.record.date === selectedDate)
+    .filter(item => !selectedLevel || item.level === selectedLevel)
+    .filter(item => !selectedRoom || String(item.room) === String(selectedRoom))
+    .sort((a, b) => {
+      if(a.record.date !== b.record.date) return b.record.date.localeCompare(a.record.date);
+      if(a.roomLabel !== b.roomLabel) return a.roomLabel.localeCompare(b.roomLabel, 'th');
+      return a.sortNumber - b.sortNumber || a.studentName.localeCompare(b.studentName, 'th');
+    });
+
+  body.innerHTML = '';
+  count.textContent = `${rows.length} รายการ`;
+
+  if(rows.length === 0){
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  rows.forEach(({ record, studentName, roomLabel }) => {
+    body.innerHTML += `
+      <tr class="border-b align-top">
+        <td class="px-3 py-2 font-medium">${escapeHtml(DATE_LABELS[record.date] || record.date)}</td>
+        <td class="px-3 py-2">${escapeHtml(studentName)}</td>
+        <td class="px-3 py-2">${escapeHtml(roomLabel)}</td>
+        <td class="px-3 py-2 whitespace-pre-wrap">${escapeHtml(record.details || '-')}</td>
+        <td class="px-3 py-2">${escapeHtml(record.teacher || '-')}</td>
+      </tr>
+    `;
+  });
+}
+
+const baseNavigateTo = navigateTo;
+navigateTo = function(page){
+  baseNavigateTo(page);
+  if(page === 'behavior'){
+    setupBehaviorFeature();
+    renderBehaviorHistory();
+  }
+  if(page === 'reports'){
+    setupBehaviorReportSection();
+    renderBehaviorReport();
+  }
+};
+
+const baseRefreshCurrentPage = refreshCurrentPage;
+refreshCurrentPage = function(){
+  baseRefreshCurrentPage();
+  const visible = document.querySelector('.page-content:not(.hidden)');
+  if(visible?.id === 'page-behavior'){
+    setupBehaviorFeature();
+    renderBehaviorHistory();
+  }
+  if(visible?.id === 'page-reports'){
+    setupBehaviorReportSection();
+    renderBehaviorReport();
+  }
+};
+
+const baseGenerateReport = generateReport;
+generateReport = function(){
+  baseGenerateReport();
+  setupBehaviorReportSection();
+  renderBehaviorReport();
+};
+
+// ============ INIT ICONS ============
+document.addEventListener('DOMContentLoaded',()=>{
+  setupMobileUI();
+  setupReportFilters();
+  setupNavHeader();
+  setupBehaviorFeature();
+  setupBehaviorReportSection();
+  lucide.createIcons();
+  applyConfig(defaultConfig);
+  window.addEventListener('resize', ()=>{
+    if(window.innerWidth > 1024){
+      closeSidebar();
+    }
+  });
+});
+</script>
+</body>
+</html>
