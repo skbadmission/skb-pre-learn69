@@ -68,6 +68,29 @@ input:focus,select:focus,textarea:focus{outline:none;ring:2px;border-color:#2d4a
   .toast{left:12px;right:12px;top:12px;padding:12px 16px}
   table{min-width:640px}
 }
+@media print{
+  body{background:#fff}
+  .sidebar,
+  .mobile-topbar,
+  .sidebar-backdrop,
+  #page-score-reports > .mb-6,
+  #page-score-reports > .grid.grid-cols-1.md\:grid-cols-3.gap-4.mb-6,
+  #page-score-reports > .bg-white.rounded-xl.p-6.shadow-sm,
+  #printScoreReportBtn{
+    display:none !important;
+  }
+  #page-score-reports{
+    display:block !important;
+    padding:0 !important;
+    background:#fff !important;
+  }
+  #scoreDocumentSection{
+    border:none !important;
+    box-shadow:none !important;
+    margin:0 !important;
+    padding:0 !important;
+  }
+}
 </style>
   <style>body { box-sizing: border-box; }</style>
  </head>
@@ -405,7 +428,7 @@ input:focus,select:focus,textarea:focus{outline:none;ring:2px;border-color:#2d4a
 // ============ SDK FALLBACKS ============
 const STORAGE_KEY = 'attendance-app-records';
 const SCHOOL_LOGO_URL = 'https://lh3.googleusercontent.com/d/1ULXHEVlWOzUaN6XpXNVczKbHPPgzoOc7';
-const API_URL = 'https://script.google.com/macros/s/AKfycbwpkSzJX6QmpQUNbT7VLkrXVYvNDIVjIUZ35rmID1w-m_qSGRHcrSOadEh1cQBJ_IQtbA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbz0XnvzIu0vFdmkWdClAAm2Cl5PUxj9FzPGuW7LjB71eC32fZvjI0DzVTmu-uKxC4rWVw/exec';
 const DATA_REFRESH_MS = 30000;
 
 if(!window.lucide){
@@ -514,7 +537,9 @@ if(!window.dataSdk){
       };
     });
 
-    const attendance = mapRows(payload.attendance).map((row)=>({
+    const attendance = mapRows(payload.attendance)
+      .filter((row)=> String(row['student_id'] || '').trim() && String(row['date'] || '').trim())
+      .map((row)=>({
       __backendId: `${row['student_id'] || ''}_${normalizeSheetDate(row['date']) || ''}_${row['period_code'] || ''}`,
       type: 'attendance',
       student_id: String(row['student_id'] || ''),
@@ -557,7 +582,30 @@ if(!window.dataSdk){
       teacher_id: ''
     }));
 
-    return [...students, ...teachers, ...attendance, ...behavior];
+    const scores = mapRows(payload.scores).map((row, index)=>({
+      __backendId: String(row['id'] || `score_${index + 1}`),
+      type: 'score',
+      score_id: String(row['id'] || ''),
+      student_id: String(row['student_id'] || ''),
+      test_type: String(row['test_type'] || ''),
+      score: Number(row['score'] || 0),
+      full_score: Number(row['full_score'] || 0),
+      date: normalizeSheetDate(row['date']),
+      teacher: String(row['teacher'] || ''),
+      number: '',
+      first_name: '',
+      last_name: '',
+      level: '',
+      room: '',
+      subject: '',
+      username: '',
+      password: '',
+      status: '',
+      period: '',
+      teacher_id: ''
+    }));
+
+    return [...students, ...teachers, ...attendance, ...behavior, ...scores];
   };
 
   const loadRecords = ()=>{
@@ -585,22 +633,24 @@ if(!window.dataSdk){
 
   const syncFromApi = async()=>{
     const buildActionUrl = (action)=> `${API_URL}?action=${encodeURIComponent(action)}&t=${Date.now()}`;
-    const [studentsResponse, teachersResponse, attendanceResponse, behaviorResponse] = await Promise.all([
+    const [studentsResponse, teachersResponse, attendanceResponse, behaviorResponse, scoresResponse] = await Promise.all([
       fetch(buildActionUrl('students'), { cache: 'no-store' }),
       fetch(buildActionUrl('teachers'), { cache: 'no-store' }),
       fetch(buildActionUrl('attendance'), { cache: 'no-store' }),
-      fetch(buildActionUrl('behavior'), { cache: 'no-store' })
+      fetch(buildActionUrl('behavior'), { cache: 'no-store' }),
+      fetch(buildActionUrl('scores'), { cache: 'no-store' })
     ]);
-    if(!studentsResponse.ok || !teachersResponse.ok || !attendanceResponse.ok || !behaviorResponse.ok){
+    if(!studentsResponse.ok || !teachersResponse.ok || !attendanceResponse.ok || !behaviorResponse.ok || !scoresResponse.ok){
       throw new Error('Failed to load sheet data');
     }
-    const [students, teachers, attendance, behavior] = await Promise.all([
+    const [students, teachers, attendance, behavior, scores] = await Promise.all([
       studentsResponse.json(),
       teachersResponse.json(),
       attendanceResponse.json(),
-      behaviorResponse.json()
+      behaviorResponse.json(),
+      scoresResponse.json()
     ]);
-    const payload = { students, teachers, attendance, behavior };
+    const payload = { students, teachers, attendance, behavior, scores };
     records = normalizePayload(payload);
     ensureKnownDates(records);
     persist();
@@ -632,7 +682,7 @@ if(!window.dataSdk){
       return syncFromApi();
     },
     async create(record){
-      if(record.type !== 'attendance' && record.type !== 'behavior'){
+      if(record.type !== 'attendance' && record.type !== 'behavior' && record.type !== 'score'){
         return unsupportedMutation();
       }
       const payload = record.type === 'behavior'
@@ -646,6 +696,16 @@ if(!window.dataSdk){
             number: record.number || '',
             level: record.level || '',
             room: record.room || ''
+          }
+        : record.type === 'score'
+        ? {
+            type: 'score',
+            student_id: record.student_id,
+            test_type: record.test_type || '',
+            score: record.score || 0,
+            full_score: record.full_score || 0,
+            date: record.date || '',
+            teacher: record.teacher || currentUser?.name || ''
           }
         : {
             student_id: record.student_id,
@@ -661,13 +721,22 @@ if(!window.dataSdk){
         body: JSON.stringify(payload)
       });
       const responseText = await response.text();
+      let responseJson = null;
+      try{
+        responseJson = responseText ? JSON.parse(responseText) : null;
+      }catch(parseError){
+        responseJson = null;
+      }
       const postUnsupported = /doPost|ไม่พบฟังก์ชันของสคริปต์|script function not found/i.test(responseText);
-      if(!response.ok || postUnsupported){
+      const postFailed = responseJson && responseJson.success === false;
+      if(!response.ok || postUnsupported || postFailed){
         return {
           isOk:false,
           error: postUnsupported
             ? 'Apps Script ตัวนี้ยังไม่มี doPost จึงบันทึกกลับ Google Sheet ไม่ได้'
-            : `Failed to save attendance: ${response.status}`
+            : postFailed
+              ? (responseJson.error || 'Apps Script returned success:false')
+              : `Failed to save attendance: ${response.status}`
         };
       }
       syncFromApi().catch((error)=>console.warn('Post-save refresh failed', error));
@@ -677,6 +746,12 @@ if(!window.dataSdk){
             item.student_id === record.student_id &&
             item.date === record.date &&
             item.details === record.details;
+        }
+        if(record.type === 'score'){
+          return item.type === 'score' &&
+            item.student_id === record.student_id &&
+            item.test_type === record.test_type &&
+            item.date === record.date;
         }
         return item.type === 'attendance' &&
           item.student_id === record.student_id &&
@@ -722,6 +797,7 @@ function getStudents(){ return allRecords.filter(r=>r.type==='student'); }
 function getTeachers(){ return allRecords.filter(r=>r.type==='teacher'); }
 function getAttendanceRecords(){ return allRecords.filter(r=>r.type==='attendance'); }
 function getBehaviorRecords(){ return allRecords.filter(r=>r.type==='behavior'); }
+function getScoreRecords(){ return allRecords.filter(r=>r.type==='score'); }
 
 function formatThaiDateLabel(dateString){
   const match = String(dateString || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -1011,6 +1087,10 @@ function showMainApp(){
   if(mobileSchoolName) mobileSchoolName.textContent = document.getElementById('sideSchoolName').textContent;
   if(mobileUserName) mobileUserName.textContent = currentUser.name;
   setupNavHeader();
+  setupBehaviorFeature();
+  setupScoreFeature();
+  setupAttendanceExportButton();
+  normalizeUiThaiText();
   lucide.createIcons();
 }
 
@@ -1317,6 +1397,15 @@ function loadAttendance(){
 
   const body = document.getElementById('attendanceBody');
   const empty = document.getElementById('attEmpty');
+  const headerRow = body?.closest('table')?.querySelector('thead tr');
+  if(headerRow){
+    headerRow.innerHTML = `
+      <th class="px-4 py-3 text-left">รหัสนักเรียน</th>
+      <th class="px-4 py-3 text-left">ชื่อ-สกุล</th>
+      <th class="px-4 py-3 text-left">เลขที่</th>
+      <th class="px-4 py-3 text-center">สถานะ</th>
+    `;
+  }
   body.innerHTML='';
 
   if(students.length===0){empty.classList.remove('hidden');return;}
@@ -1328,8 +1417,9 @@ function loadAttendance(){
     const tr = document.createElement('tr');
     tr.className='border-b';
     tr.id='att-row-'+sid;
-    tr.innerHTML=`<td class="px-4 py-2 font-medium">${s.number}</td>
+    tr.innerHTML=`<td class="px-4 py-2 font-mono text-xs md:text-sm">${s.__backendId}</td>
     <td class="px-4 py-2">${s.first_name} ${s.last_name}</td>
+    <td class="px-4 py-2 font-medium">${s.number}</td>
     <td class="px-4 py-3 text-center">
       <div class="flex justify-center gap-2">
         <button onclick="setStatus('${sid}','present')" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition ${st==='present'?'status-present':'status-none hover:bg-green-100'}">มา</button>
@@ -1833,7 +1923,6 @@ async function saveAttendance(){
   try{
     let saved = 0;
     const errors = [];
-    const intended = new Map(entries.map(([sid, data]) => [sid, data.status]));
 
     for(let index = 0; index < entries.length; index++){
       const [sid, data] = entries[index];
@@ -1867,6 +1956,22 @@ async function saveAttendance(){
 
       if(result?.isOk){
         saved++;
+        if(data.record){
+          data.record.status = data.status;
+          data.record.date = date;
+          data.record.period = period;
+          data.record.period_code = period;
+        } else {
+          data.record = {
+            type: 'attendance',
+            student_id: sid,
+            date,
+            period,
+            period_code: period,
+            status: data.status,
+            teacher_id: currentUser?.backendId || 'admin'
+          };
+        }
       } else {
         errors.push(`นักเรียน ${sid}: ${result?.error || 'Attendance save failed'}`);
       }
@@ -1878,6 +1983,7 @@ async function saveAttendance(){
     }
 
     try{
+      if(false){
       await window.dataSdk.refresh?.();
       const missing = [...intended.entries()].filter(([sid, status]) => {
         const record = getAttendanceRecords().find(item => item.student_id === sid && item.date === date && item.period === period);
@@ -1904,6 +2010,7 @@ async function saveAttendance(){
 
       if(missing.length){
         await window.dataSdk.refresh?.();
+      }
       }
     }catch(verifyError){
       console.warn('Attendance verification skipped', verifyError);
@@ -2430,6 +2537,933 @@ function renderBehaviorReport(){
   });
 }
 
+function parseScoreCsv(text){
+  const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if(lines.length === 0) return [];
+  const [header, ...rows] = lines;
+  const normalizedHeader = header.toLowerCase().replace(/\s+/g, '');
+  const isCsv = normalizedHeader.includes(',');
+
+  return rows.map(line => {
+    const parts = isCsv ? line.split(',') : line.split('\t');
+    return {
+      student_id: String(parts[0] || '').trim(),
+      score: Number(String(parts[1] || '').trim())
+    };
+  }).filter(row => row.student_id && !Number.isNaN(row.score));
+}
+
+function getTeacherScopedStudents(){
+  let students = getStudents();
+  if(currentUser?.role === 'teacher'){
+    if(currentUser.level){
+      students = students.filter(student => student.level === currentUser.level);
+    }
+    if(currentUser.room){
+      students = students.filter(student => String(student.room) === String(currentUser.room));
+    }
+  }
+  return students;
+}
+
+function setupScoreFeature(){
+  const nav = document.getElementById('sidebarNav');
+  if(nav && !document.getElementById('scoresNavBtn')){
+    const reportsNavBtn = nav.querySelector('[data-nav="reports"]');
+    const scoreBtn = document.createElement('button');
+    scoreBtn.type = 'button';
+    scoreBtn.id = 'scoresNavBtn';
+    scoreBtn.dataset.nav = 'scores';
+    scoreBtn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left';
+    scoreBtn.setAttribute('onclick', "navigateTo('scores')");
+    scoreBtn.innerHTML = '<i data-lucide="sheet" class="w-4 h-4"></i> บันทึกคะแนน';
+
+    const reportBtn = document.createElement('button');
+    reportBtn.type = 'button';
+    reportBtn.id = 'scoreReportsNavBtn';
+    reportBtn.dataset.nav = 'score-reports';
+    reportBtn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left';
+    reportBtn.setAttribute('onclick', "navigateTo('score-reports')");
+    reportBtn.innerHTML = '<i data-lucide="graduation-cap" class="w-4 h-4"></i> รายงานคะแนน';
+
+    if(reportsNavBtn){
+      reportsNavBtn.insertAdjacentElement('afterend', scoreBtn);
+      scoreBtn.insertAdjacentElement('afterend', reportBtn);
+    } else {
+      nav.appendChild(scoreBtn);
+      nav.appendChild(reportBtn);
+    }
+  }
+
+  const mainContent = document.getElementById('mainContent');
+  if(mainContent && !document.getElementById('page-scores')){
+    mainContent.insertAdjacentHTML('beforeend', `
+      <div id="page-scores" class="page-content hidden p-6 fade-in">
+        <div class="mb-6">
+          <h1 class="font-kanit text-2xl font-bold text-navy">บันทึกคะแนน Pre-test / Post-test</h1>
+          <p class="text-gray-500 font-sarabun text-sm">อัปโหลดคะแนนด้วย CSV รูปแบบ <span class="font-medium">student_id,score</span></p>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-6">
+          <div class="bg-white rounded-xl p-6 shadow-sm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">วันที่สอบ</label>
+                <select id="scoreDate" class="w-full px-3 py-2 border rounded-lg font-sarabun"></select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ประเภทคะแนน</label>
+                <select id="scoreTestType" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+                  <option value="pre">Pre-test</option>
+                  <option value="post">Post-test</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">คะแนนเต็ม</label>
+                <input id="scoreFullScore" type="number" min="1" value="20" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ไฟล์ CSV</label>
+                <input id="scoreCsvFile" type="file" accept=".csv,text/csv" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+              </div>
+            </div>
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">วางข้อมูล CSV</label>
+              <textarea id="scoreCsvText" rows="8" class="w-full px-4 py-3 border rounded-lg font-sarabun" placeholder="student_id,score&#10;Mม.1-01-001,12&#10;Mม.1-01-002,15"></textarea>
+            </div>
+            <div class="mt-4 flex gap-3 flex-wrap">
+              <button id="previewScoreBtn" type="button" class="px-4 py-2 border border-slate-300 rounded-lg font-sarabun text-sm hover:bg-slate-50 transition">ตรวจข้อมูล</button>
+              <button id="saveScoreBtn" type="button" class="px-4 py-2 bg-navy text-white rounded-lg font-sarabun text-sm hover:bg-royal transition flex items-center gap-2">
+                <i data-lucide="upload" class="w-4 h-4"></i> อัปโหลดคะแนน
+              </button>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <h3 class="font-kanit font-semibold text-navy">ตัวอย่างข้อมูลที่จะนำเข้า</h3>
+              <span class="text-xs text-gray-400 font-sarabun" id="scorePreviewCount">0 รายการ</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm font-sarabun">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left">student_id</th>
+                    <th class="px-3 py-2 text-left">ชื่อ-สกุล</th>
+                    <th class="px-3 py-2 text-center">คะแนน</th>
+                  </tr>
+                </thead>
+                <tbody id="scorePreviewBody"></tbody>
+              </table>
+            </div>
+            <div id="scorePreviewEmpty" class="p-6 text-center text-gray-400 font-sarabun">ยังไม่มีข้อมูลสำหรับนำเข้า</div>
+          </div>
+        </div>
+      </div>
+      <div id="page-score-reports" class="page-content hidden p-6 fade-in">
+        <div class="mb-6">
+          <h1 class="font-kanit text-2xl font-bold text-navy">รายงานคะแนนและความก้าวหน้า</h1>
+          <p class="text-gray-500 font-sarabun text-sm">สรุปคะแนน Pre-test, Post-test และร้อยละความก้าวหน้า</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ระดับชั้น</label>
+            <select id="scoreRptLevel" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+              <option value="">ทุกระดับชั้น</option>
+              <option value="ม.1">ม.1</option>
+              <option value="ม.4">ม.4</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ห้อง</label>
+            <select id="scoreRptRoom" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+              <option value="">ทุกห้อง</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">วันที่</label>
+            <select id="scoreRptDate" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+              <option value="">ทุกวัน</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-white rounded-xl p-5 shadow-sm border-l-4 border-sky-500"><p class="text-sm text-gray-500 font-sarabun">เฉลี่ย Pre-test</p><p id="scoreAvgPre" class="text-2xl font-bold font-kanit text-sky-600">0%</p></div>
+          <div class="bg-white rounded-xl p-5 shadow-sm border-l-4 border-emerald-500"><p class="text-sm text-gray-500 font-sarabun">เฉลี่ย Post-test</p><p id="scoreAvgPost" class="text-2xl font-bold font-kanit text-emerald-600">0%</p></div>
+          <div class="bg-white rounded-xl p-5 shadow-sm border-l-4 border-amber-500"><p class="text-sm text-gray-500 font-sarabun">ความก้าวหน้าเฉลี่ย</p><p id="scoreAvgProgress" class="text-2xl font-bold font-kanit text-amber-600">0%</p></div>
+        </div>
+        <div class="bg-white rounded-xl p-6 shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm font-sarabun">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left">เลขที่</th>
+                  <th class="px-3 py-2 text-left">ชื่อ-สกุล</th>
+                  <th class="px-3 py-2 text-center">Pre</th>
+                  <th class="px-3 py-2 text-center">Post</th>
+                  <th class="px-3 py-2 text-center">Pre %</th>
+                  <th class="px-3 py-2 text-center">Post %</th>
+                  <th class="px-3 py-2 text-center">ก้าวหน้า</th>
+                </tr>
+              </thead>
+              <tbody id="scoreReportBody"></tbody>
+            </table>
+          </div>
+          <div id="scoreReportEmpty" class="hidden p-6 text-center text-gray-400 font-sarabun">ยังไม่มีข้อมูลคะแนนในเงื่อนไขนี้</div>
+        </div>
+      </div>
+    `);
+  }
+
+  const dateEl = document.getElementById('scoreDate');
+  if(dateEl && !dateEl.dataset.ready){
+    dateEl.innerHTML = VALID_DATES.map(date => `<option value="${date}">${DATE_LABELS[date] || date}</option>`).join('');
+    dateEl.value = VALID_DATES[VALID_DATES.length - 1] || '';
+    dateEl.dataset.ready = 'true';
+  }
+
+  const page = document.getElementById('page-scores');
+  if(page && !document.getElementById('scoreTeacherScope')){
+    const intro = page.querySelector('.mb-6');
+    intro?.insertAdjacentHTML('beforeend', `<p id="scoreTeacherScope" class="text-sm text-royal font-sarabun mt-2"></p>`);
+  }
+
+  const scoreReportPage = document.getElementById('page-score-reports');
+  if(scoreReportPage && !document.getElementById('printScoreReportBtn')){
+    const reportHeader = scoreReportPage.querySelector('.mb-6');
+    reportHeader?.insertAdjacentHTML('beforeend', `
+      <div class="mt-4 flex gap-3 flex-wrap">
+        <button id="printScoreReportBtn" type="button" class="px-4 py-2 bg-navy text-white rounded-lg font-sarabun text-sm hover:bg-royal transition flex items-center gap-2">
+          <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ PDF
+        </button>
+      </div>
+    `);
+  }
+  if(scoreReportPage && !document.getElementById('scoreDocumentSection')){
+    const legacyCards = scoreReportPage.querySelector('.grid.grid-cols-1.md\\:grid-cols-3.gap-4.mb-6');
+    const legacyTableCard = scoreReportPage.querySelector('.bg-white.rounded-xl.p-6.shadow-sm');
+    legacyCards?.classList.add('hidden');
+    legacyTableCard?.classList.add('hidden');
+    scoreReportPage.insertAdjacentHTML('beforeend', `
+      <div id="scoreDocumentSection" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+        <div class="text-center mb-3">
+          <img src="${SCHOOL_LOGO_URL}" alt="School logo" class="w-14 h-14 object-cover mx-auto mb-2">
+          <h2 class="font-kanit text-lg font-semibold text-slate-900 leading-tight">โรงเรียนชลบุรี "สุขบท"</h2>
+          <p class="font-sarabun text-sm text-slate-900 leading-tight">รายงานคะแนนสอบ pre-test และ post-test การเรียนปรับพื้นฐาน</p>
+          <p id="scoreDocClassroom" class="font-sarabun text-sm text-slate-900 leading-tight">นักเรียนระดับชั้น มัธยมศึกษาปีที่ - ห้อง -</p>
+          <p id="scoreDocDateRange" class="font-sarabun text-sm text-slate-900 leading-tight">วันที่ 5 - 13 พฤษภาคม 2569</p>
+        </div>
+        <div class="mb-3">
+          <div class="grid grid-cols-3 gap-3 text-center text-xs md:text-sm font-sarabun">
+            <div>เฉลี่ย Pre-test <span id="scoreDocAvgPre" class="font-medium">0%</span></div>
+            <div>เฉลี่ย Post-test <span id="scoreDocAvgPost" class="font-medium">0%</span></div>
+            <div>ความก้าวหน้าเฉลี่ย <span id="scoreDocAvgProgress" class="font-medium">0%</span></div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="flex items-end gap-4 text-xs md:text-sm font-sarabun">
+            <p class="font-medium whitespace-nowrap">กราฟสรุปผลคะแนน</p>
+            <div id="scoreDocChart" class="grid grid-cols-3 gap-3 flex-1"></div>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-[11px] md:text-xs font-sarabun border border-slate-300">
+            <thead class="bg-slate-100">
+              <tr>
+                <th class="px-3 py-2 text-left border border-slate-300">เลขที่</th>
+                <th class="px-3 py-2 text-left border border-slate-300">ชื่อ - สกุล</th>
+                <th class="px-3 py-2 text-left border border-slate-300">ระดับชั้น</th>
+                <th class="px-3 py-2 text-left border border-slate-300">ห้อง</th>
+                <th class="px-3 py-2 text-center border border-slate-300">Pre</th>
+                <th class="px-3 py-2 text-center border border-slate-300">Post</th>
+                <th class="px-3 py-2 text-center border border-slate-300">Pre %</th>
+                <th class="px-3 py-2 text-center border border-slate-300">Post %</th>
+                <th class="px-3 py-2 text-center border border-slate-300">ก้าวหน้า</th>
+              </tr>
+            </thead>
+            <tbody id="scoreDocBody"></tbody>
+          </table>
+        </div>
+        <div id="scoreDocEmpty" class="hidden py-8 text-center text-slate-400 font-sarabun">ยังไม่มีข้อมูลคะแนนในเงื่อนไขนี้</div>
+        <div class="mt-10 flex justify-end">
+          <div class="w-full max-w-xs text-center font-sarabun text-sm">
+            <p class="mb-8">ลงชื่อ................................... ครูประจำวิชา</p>
+            <p id="scoreDocTeacherName">(...................................)</p>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  const teacherScope = document.getElementById('scoreTeacherScope');
+  if(teacherScope){
+    teacherScope.textContent = currentUser?.role === 'teacher'
+      ? `ผู้กรอกคะแนน: ${currentUser.name} | ห้องที่รับผิดชอบ: ${currentUser.level || '-'} / ${currentUser.room || '-'}`
+      : 'ผู้ดูแลระบบสามารถอัปโหลดคะแนนได้ทุกห้อง';
+  }
+  const scoreGrid = document.getElementById('page-scores')?.querySelector('.grid.grid-cols-1.md\\:grid-cols-2.gap-4');
+  if(scoreGrid && !document.getElementById('scoreCsvFile')){
+    scoreGrid.insertAdjacentHTML('beforeend', `
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1 font-sarabun">ไฟล์ CSV</label>
+        <input id="scoreCsvFile" type="file" accept=".csv,text/csv" class="w-full px-3 py-2 border rounded-lg font-sarabun">
+      </div>
+    `);
+  }
+
+  const scoreActionBar = document.getElementById('previewScoreBtn')?.parentElement;
+  if(scoreActionBar && !document.getElementById('exportScoreTemplateBtn')){
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.id = 'exportScoreTemplateBtn';
+    exportBtn.className = 'px-4 py-2 border border-slate-300 rounded-lg font-sarabun text-sm hover:bg-slate-50 transition flex items-center gap-2';
+    exportBtn.innerHTML = '<i data-lucide="file-down" class="w-4 h-4"></i> Export CSV';
+    exportBtn.addEventListener('click', exportScoreTemplateCsv);
+    scoreActionBar.insertBefore(exportBtn, scoreActionBar.firstChild);
+  }
+
+  const fileEl = document.getElementById('scoreCsvFile');
+  if(fileEl && !fileEl.dataset.ready){
+    fileEl.dataset.ready = 'true';
+    fileEl.addEventListener('change', async(event) => {
+      const file = event.target.files?.[0];
+      if(!file) return;
+      const text = await file.text();
+      const textarea = document.getElementById('scoreCsvText');
+      if(textarea) textarea.value = text;
+      previewScoreImport();
+    });
+  }
+
+  const previewBtn = document.getElementById('previewScoreBtn');
+  if(previewBtn && !previewBtn.dataset.ready){
+    previewBtn.dataset.ready = 'true';
+    previewBtn.addEventListener('click', previewScoreImport);
+  }
+  const printBtn = document.getElementById('printScoreReportBtn');
+  if(printBtn && !printBtn.dataset.ready){
+    printBtn.dataset.ready = 'true';
+    printBtn.addEventListener('click', printScoreReportPdf);
+  }
+  const saveBtn = document.getElementById('saveScoreBtn');
+  if(saveBtn && !saveBtn.dataset.ready){
+    saveBtn.dataset.ready = 'true';
+    saveBtn.addEventListener('click', saveScoreImport);
+  }
+
+  const levelRpt = document.getElementById('scoreRptLevel');
+  const roomRpt = document.getElementById('scoreRptRoom');
+  const dateRpt = document.getElementById('scoreRptDate');
+  if(levelRpt && !levelRpt.dataset.ready){
+    levelRpt.dataset.ready = 'true';
+    levelRpt.addEventListener('change', () => {
+      updateScoreReportRoomOptions();
+      renderScoreReport();
+    });
+  }
+  if(roomRpt && !roomRpt.dataset.ready){
+    roomRpt.dataset.ready = 'true';
+    roomRpt.addEventListener('change', renderScoreReport);
+  }
+  if(dateRpt && !dateRpt.dataset.ready){
+    dateRpt.dataset.ready = 'true';
+    dateRpt.addEventListener('change', renderScoreReport);
+  }
+
+  updateScoreReportFilters();
+  if(currentUser?.role === 'teacher'){
+    const levelRptEl = document.getElementById('scoreRptLevel');
+    const roomRptEl = document.getElementById('scoreRptRoom');
+    if(levelRptEl && currentUser.level){
+      levelRptEl.value = currentUser.level;
+      levelRptEl.disabled = true;
+    }
+    updateScoreReportRoomOptions();
+    if(roomRptEl && currentUser.room){
+      roomRptEl.value = String(currentUser.room);
+      roomRptEl.disabled = true;
+    }
+  }
+  lucide.createIcons();
+}
+
+function printScoreReportPdf(){
+  const reportPage = document.getElementById('page-score-reports');
+  if(!reportPage){
+    showToast('ไม่พบหน้ารายงานคะแนน', 'error');
+    return;
+  }
+
+  const previousTitle = document.title;
+  const level = document.getElementById('scoreRptLevel')?.value || 'all';
+  const room = document.getElementById('scoreRptRoom')?.value || 'all';
+  document.title = `score-report_${level}_${room}`;
+  window.print();
+  window.setTimeout(() => {
+    document.title = previousTitle;
+  }, 300);
+}
+
+async function saveAttendance(){
+  const dateEl = document.getElementById('attDate');
+  const periodEl = document.getElementById('attPeriod');
+  const btn = document.getElementById('saveAttBtn');
+  const date = dateEl?.value;
+  const period = periodEl?.value;
+  const entries = Object.entries(localAttendance || {}).filter(([, data]) => data?.status && data.status !== 'none');
+
+  if(!date || !period){
+    showToast('กรุณาเลือกวันที่และคาบเรียนก่อนบันทึก', 'warning');
+    return;
+  }
+
+  if(entries.length === 0){
+    showToast('ยังไม่มีรายการที่เปลี่ยนแปลงให้บันทึก', 'warning');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...';
+    lucide.createIcons();
+  }
+
+  try{
+    let saved = 0;
+    const errors = [];
+
+    for(let index = 0; index < entries.length; index++){
+      const [sid, data] = entries[index];
+
+      if(btn){
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก ${index + 1}/${entries.length}`;
+        lucide.createIcons();
+      }
+
+      const result = await saveAttendanceRecordWithRetry(() => {
+        if(data.record){
+          return window.dataSdk.update({
+            ...data.record,
+            type: 'attendance',
+            status: data.status,
+            period,
+            period_code: period
+          });
+        }
+
+        return window.dataSdk.create({
+          type:'attendance',
+          date,
+          period,
+          period_code: period,
+          status:data.status,
+          student_id:sid,
+          teacher_id:currentUser?.backendId || 'admin'
+        });
+      });
+
+      if(result?.isOk){
+        saved++;
+        if(data.record){
+          data.record.status = data.status;
+          data.record.date = date;
+          data.record.period = period;
+          data.record.period_code = period;
+        } else {
+          data.record = {
+            type: 'attendance',
+            student_id: sid,
+            date,
+            period,
+            period_code: period,
+            status: data.status,
+            teacher_id: currentUser?.backendId || 'admin'
+          };
+        }
+      } else {
+        errors.push(`นักเรียน ${sid}: ${result?.error || 'Attendance save failed'}`);
+      }
+    }
+
+    if(btn){
+      btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> ตรวจสอบข้อมูลที่บันทึก...';
+      lucide.createIcons();
+    }
+
+    try{
+      await window.dataSdk.refresh?.();
+      const missing = [...intended.entries()].filter(([sid, status]) => {
+        const record = getAttendanceRecords().find(item => item.student_id === sid && item.date === date && item.period === period);
+        return !record || record.status !== status;
+      });
+
+      for(const [sid, status] of missing){
+        const retryResult = await saveAttendanceRecordWithRetry(() => window.dataSdk.create({
+          type:'attendance',
+          date,
+          period,
+          period_code: period,
+          status,
+          student_id:sid,
+          teacher_id:currentUser?.backendId || 'admin'
+        }), 2);
+
+        if(retryResult?.isOk){
+          saved++;
+        } else {
+          errors.push(`ยืนยันการบันทึกไม่ผ่าน ${sid}`);
+        }
+      }
+
+      if(missing.length){
+        await window.dataSdk.refresh?.();
+      }
+    }catch(verifyError){
+      console.warn('Attendance verification skipped', verifyError);
+    }
+
+    if(errors.length){
+      console.error('Attendance save errors:', errors);
+      showToast(`บันทึกได้ ${saved}/${entries.length} รายการ`, 'error');
+    } else {
+      attendanceDirty = false;
+      showToast(`บันทึกลง Google Sheet สำเร็จ ${saved} รายการ`);
+      window.dataSdk.refresh?.()
+        .then(()=>loadAttendance())
+        .catch((error)=>console.warn('Background refresh failed', error));
+    }
+  }catch(error){
+    console.error('saveAttendance failed', error);
+    showToast(`บันทึกไม่สำเร็จ: ${error.message || error}`, 'error');
+  }finally{
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> บันทึก';
+      lucide.createIcons();
+    }
+  }
+}
+
+function setupAttendanceExportButton(){
+  const actionBar = document.getElementById('saveAttBtn')?.parentElement;
+  if(actionBar && !document.getElementById('exportAttBtn')){
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.id = 'exportAttBtn';
+    exportBtn.className = 'px-4 py-2 border border-slate-300 text-slate-700 rounded-lg font-sarabun text-sm hover:bg-slate-50 transition flex items-center gap-1';
+    exportBtn.innerHTML = '<i data-lucide="download" class="w-4 h-4"></i> Export CSV';
+    exportBtn.addEventListener('click', exportAttendanceCsv);
+    const saveBtn = document.getElementById('saveAttBtn');
+    actionBar.insertBefore(exportBtn, saveBtn);
+  }
+}
+
+async function saveAttendance(){
+  const dateEl = document.getElementById('attDate');
+  const periodEl = document.getElementById('attPeriod');
+  const btn = document.getElementById('saveAttBtn');
+  const date = dateEl?.value;
+  const period = periodEl?.value;
+  const entries = Object.entries(localAttendance || {}).filter(([, data]) => data?.status && data.status !== 'none');
+
+  if(!date || !period){
+    showToast('กรุณาเลือกวันที่และคาบเรียนก่อนบันทึก', 'warning');
+    return;
+  }
+
+  if(entries.length === 0){
+    showToast('กรุณาเลือกสถานะนักเรียนอย่างน้อย 1 คนก่อนบันทึก', 'warning');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก...';
+    lucide.createIcons();
+  }
+
+  try{
+    let saved = 0;
+    const errors = [];
+
+    for(let index = 0; index < entries.length; index++){
+      const [sid, data] = entries[index];
+
+      if(btn){
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังบันทึก ${index + 1}/${entries.length}`;
+        lucide.createIcons();
+      }
+
+      const result = await saveAttendanceRecordWithRetry(() => {
+        if(data.record){
+          return window.dataSdk.update({
+            ...data.record,
+            type: 'attendance',
+            student_id: sid,
+            date,
+            status: data.status,
+            period,
+            period_code: period
+          });
+        }
+
+        return window.dataSdk.create({
+          type: 'attendance',
+          date,
+          period,
+          period_code: period,
+          status: data.status,
+          student_id: sid,
+          teacher_id: currentUser?.backendId || 'admin'
+        });
+      });
+
+      if(result?.isOk){
+        saved++;
+        data.record = {
+          ...(data.record || {}),
+          type: 'attendance',
+          student_id: sid,
+          date,
+          period,
+          period_code: period,
+          status: data.status,
+          teacher_id: currentUser?.backendId || 'admin'
+        };
+      } else {
+        errors.push(`${sid}: ${result?.error || 'Attendance save failed'}`);
+      }
+    }
+
+    if(errors.length){
+      console.error('Attendance save errors:', errors);
+      showToast(`บันทึกได้ ${saved}/${entries.length} รายการ`, 'error');
+    } else {
+      attendanceDirty = false;
+      showToast(`บันทึกลง Google Sheet สำเร็จ ${saved} รายการ`);
+    }
+
+    window.dataSdk.refresh?.()
+      .then(()=>loadAttendance())
+      .catch((error)=>console.warn('Background refresh failed', error));
+  }catch(error){
+    console.error('saveAttendance failed', error);
+    showToast(`บันทึกไม่สำเร็จ: ${error.message || error}`, 'error');
+  }finally{
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> บันทึก';
+      lucide.createIcons();
+    }
+  }
+}
+
+function exportAttendanceCsv(){
+  const date = document.getElementById('attDate')?.value || '';
+  const level = document.getElementById('attLevel')?.value || '';
+  const room = document.getElementById('attRoom')?.value || '';
+  const period = document.getElementById('attPeriod')?.value || '';
+
+  let students = getStudents().filter(student => student.level === level && String(student.room) === String(room));
+  students = students.sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+
+  const rows = students.map(student => {
+    const status = localAttendance?.[student.__backendId]?.status || 'none';
+    return [
+      student.__backendId,
+      `${student.first_name} ${student.last_name}`.trim(),
+      student.number,
+      status
+    ];
+  });
+
+  const csv = [
+    ['student_id','name','number','status'],
+    ...rows
+  ].map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `attendance_${date || 'date'}_${level || 'level'}_${room || 'room'}_${period || 'period'}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportScoreTemplateCsv(){
+  const students = getTeacherScopedStudents().sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+  const csv = [
+    ['student_id','score'],
+    ...students.map(student => [student.__backendId, ''])
+  ].map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const suffix = currentUser?.role === 'teacher' ? `${currentUser.level || 'level'}_${currentUser.room || 'room'}` : 'all_rooms';
+  link.download = `score_template_${suffix}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function previewScoreImport(){
+  const body = document.getElementById('scorePreviewBody');
+  const empty = document.getElementById('scorePreviewEmpty');
+  const count = document.getElementById('scorePreviewCount');
+  if(!body || !empty || !count) return [];
+
+  const rows = parseScoreCsv(document.getElementById('scoreCsvText')?.value || '');
+  const studentMap = new Map(getTeacherScopedStudents().map(student => [student.__backendId, student]));
+
+  body.innerHTML = '';
+  count.textContent = `${rows.length} รายการ`;
+  if(rows.length === 0){
+    empty.classList.remove('hidden');
+    return [];
+  }
+
+  empty.classList.add('hidden');
+  rows.slice(0, 50).forEach(row => {
+    const student = studentMap.get(row.student_id);
+    const name = student ? `${student.number} ${student.first_name} ${student.last_name}`.trim() : 'ไม่พบในห้องที่รับผิดชอบ';
+    body.innerHTML += `<tr class="border-b ${student ? '' : 'bg-red-50'}"><td class="px-3 py-2">${escapeHtml(row.student_id)}</td><td class="px-3 py-2">${escapeHtml(name)}</td><td class="px-3 py-2 text-center font-medium">${row.score}</td></tr>`;
+  });
+  return rows.filter(row => studentMap.has(row.student_id));
+}
+
+async function saveScoreImport(){
+  const rows = previewScoreImport();
+  const testType = document.getElementById('scoreTestType')?.value || 'pre';
+  const fullScore = Number(document.getElementById('scoreFullScore')?.value || 0);
+  const date = document.getElementById('scoreDate')?.value || '';
+  const btn = document.getElementById('saveScoreBtn');
+
+  if(rows.length === 0){
+    showToast('กรุณาใส่ข้อมูล CSV ก่อนอัปโหลด', 'warning');
+    return;
+  }
+  if(!fullScore){
+    showToast('กรุณาระบุคะแนนเต็ม', 'warning');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังอัปโหลด...';
+    lucide.createIcons();
+  }
+
+  try{
+    let saved = 0;
+    const errors = [];
+    for(let index = 0; index < rows.length; index++){
+      const row = rows[index];
+      if(btn){
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังอัปโหลด ${index + 1}/${rows.length}`;
+        lucide.createIcons();
+      }
+      const result = await window.dataSdk.create({
+        type: 'score',
+        student_id: row.student_id,
+        test_type: testType,
+        score: row.score,
+        full_score: fullScore,
+        date,
+        teacher: currentUser?.name || 'Admin'
+      });
+      if(result?.isOk) saved++;
+      else errors.push(row.student_id);
+    }
+
+    await window.dataSdk.refresh?.();
+    updateScoreReportFilters();
+    renderScoreReport();
+
+    if(errors.length){
+      showToast(`อัปโหลดได้ ${saved}/${rows.length} รายการ`, 'error');
+    } else {
+      showToast(`อัปโหลดคะแนนสำเร็จ ${saved} รายการ`);
+    }
+  }catch(error){
+    console.error('saveScoreImport failed', error);
+    showToast(`อัปโหลดคะแนนไม่สำเร็จ: ${error.message || error}`, 'error');
+  }finally{
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="upload" class="w-4 h-4"></i> อัปโหลดคะแนน';
+      lucide.createIcons();
+    }
+  }
+}
+
+function updateScoreReportRoomOptions(){
+  const level = document.getElementById('scoreRptLevel')?.value || '';
+  const roomEl = document.getElementById('scoreRptRoom');
+  if(!roomEl) return;
+  if(currentUser?.role === 'teacher' && currentUser.room){
+    roomEl.innerHTML = `<option value="${currentUser.room}">${currentUser.room}</option>`;
+    return;
+  }
+  if(!level){
+    roomEl.innerHTML = '<option value="">ทุกห้อง</option>';
+    return;
+  }
+  roomEl.innerHTML = '<option value="">ทุกห้อง</option>' + getRooms(level).map(room => `<option value="${room}">${room}</option>`).join('');
+}
+
+function updateScoreReportFilters(){
+  const dateEl = document.getElementById('scoreRptDate');
+  if(dateEl){
+    dateEl.innerHTML = '<option value="">ทุกวัน</option>' + VALID_DATES.map(date => `<option value="${date}">${DATE_LABELS[date] || date}</option>`).join('');
+  }
+  const levelEl = document.getElementById('scoreRptLevel');
+  if(levelEl && currentUser?.role === 'teacher' && currentUser.level){
+    levelEl.value = currentUser.level;
+  }
+  updateScoreReportRoomOptions();
+}
+
+function renderScoreReport(){
+  const body = document.getElementById('scoreReportBody');
+  const empty = document.getElementById('scoreReportEmpty');
+  const docBody = document.getElementById('scoreDocBody');
+  const docEmpty = document.getElementById('scoreDocEmpty');
+  if(!body || !empty) return;
+
+  const level = document.getElementById('scoreRptLevel')?.value || '';
+  const room = document.getElementById('scoreRptRoom')?.value || '';
+  const date = document.getElementById('scoreRptDate')?.value || '';
+
+  let students = getTeacherScopedStudents();
+  if(level) students = students.filter(student => student.level === level);
+  if(room) students = students.filter(student => String(student.room) === String(room));
+  students = students.sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+
+  const scores = getScoreRecords().filter(record => !date || record.date === date);
+  const latestMap = new Map();
+  scores.forEach(record => {
+    const key = `${record.student_id}__${record.test_type}`;
+    const current = latestMap.get(key);
+    if(!current || String(record.date).localeCompare(String(current.date)) >= 0){
+      latestMap.set(key, record);
+    }
+  });
+
+  let totalPrePct = 0;
+  let totalPostPct = 0;
+  let totalProgress = 0;
+  let count = 0;
+
+  body.innerHTML = '';
+  if(docBody) docBody.innerHTML = '';
+  if(students.length === 0){
+    empty.classList.remove('hidden');
+    if(docEmpty) docEmpty.classList.remove('hidden');
+    document.getElementById('scoreAvgPre').textContent = '0%';
+    document.getElementById('scoreAvgPost').textContent = '0%';
+    document.getElementById('scoreAvgProgress').textContent = '0%';
+    const docClassroom = document.getElementById('scoreDocClassroom');
+    const docTeacher = document.getElementById('scoreDocTeacherName');
+    const docChart = document.getElementById('scoreDocChart');
+    if(docClassroom) docClassroom.textContent = 'นักเรียนระดับชั้น มัธยมศึกษาปีที่ - ห้อง -';
+    if(docTeacher) docTeacher.textContent = `(${currentUser?.name || '...................................'})`;
+    if(docChart) docChart.innerHTML = '';
+    return;
+  }
+
+  students.forEach(student => {
+    const pre = latestMap.get(`${student.__backendId}__pre`);
+    const post = latestMap.get(`${student.__backendId}__post`);
+    const prePct = pre?.full_score ? (Number(pre.score || 0) / Number(pre.full_score || 1)) * 100 : null;
+    const postPct = post?.full_score ? (Number(post.score || 0) / Number(post.full_score || 1)) * 100 : null;
+    const progressPct = prePct !== null && postPct !== null ? postPct - prePct : null;
+
+    if(prePct !== null || postPct !== null){
+      totalPrePct += prePct || 0;
+      totalPostPct += postPct || 0;
+      totalProgress += progressPct || 0;
+      count++;
+    }
+
+    body.innerHTML += `
+      <tr class="border-b">
+        <td class="px-3 py-2">${escapeHtml(student.number)}</td>
+        <td class="px-3 py-2">${escapeHtml(`${student.first_name} ${student.last_name}`)}</td>
+        <td class="px-3 py-2 text-center">${pre ? `${pre.score}/${pre.full_score}` : '-'}</td>
+        <td class="px-3 py-2 text-center">${post ? `${post.score}/${post.full_score}` : '-'}</td>
+        <td class="px-3 py-2 text-center">${prePct === null ? '-' : `${Math.round(prePct)}%`}</td>
+        <td class="px-3 py-2 text-center">${postPct === null ? '-' : `${Math.round(postPct)}%`}</td>
+        <td class="px-3 py-2 text-center font-medium ${progressPct > 0 ? 'text-emerald-600' : progressPct < 0 ? 'text-red-600' : 'text-slate-500'}">${progressPct === null ? '-' : `${Math.round(progressPct)}%`}</td>
+      </tr>
+    `;
+    if(docBody){
+      docBody.innerHTML += `
+        <tr>
+          <td class="px-3 py-2 border border-slate-300">${escapeHtml(student.number)}</td>
+          <td class="px-3 py-2 border border-slate-300">${escapeHtml(`${student.first_name} ${student.last_name}`)}</td>
+          <td class="px-3 py-2 border border-slate-300">${escapeHtml(student.level)}</td>
+          <td class="px-3 py-2 border border-slate-300">${escapeHtml(student.room)}</td>
+          <td class="px-3 py-2 text-center border border-slate-300">${pre ? `${pre.score}/${pre.full_score}` : '-'}</td>
+          <td class="px-3 py-2 text-center border border-slate-300">${post ? `${post.score}/${post.full_score}` : '-'}</td>
+          <td class="px-3 py-2 text-center border border-slate-300">${prePct === null ? '-' : `${Math.round(prePct)}%`}</td>
+          <td class="px-3 py-2 text-center border border-slate-300">${postPct === null ? '-' : `${Math.round(postPct)}%`}</td>
+          <td class="px-3 py-2 text-center border border-slate-300 font-medium ${progressPct > 0 ? 'text-emerald-700' : progressPct < 0 ? 'text-red-700' : 'text-slate-500'}">${progressPct === null ? '-' : `${Math.round(progressPct)}%`}</td>
+        </tr>
+      `;
+    }
+  });
+
+  empty.classList.toggle('hidden', body.innerHTML !== '');
+  if(docEmpty) docEmpty.classList.toggle('hidden', !!docBody?.innerHTML);
+
+  const avgPre = `${count ? Math.round(totalPrePct / count) : 0}%`;
+  const avgPost = `${count ? Math.round(totalPostPct / count) : 0}%`;
+  const avgProgress = `${count ? Math.round(totalProgress / count) : 0}%`;
+  document.getElementById('scoreAvgPre').textContent = avgPre;
+  document.getElementById('scoreAvgPost').textContent = avgPost;
+  document.getElementById('scoreAvgProgress').textContent = avgProgress;
+
+  const docClassroom = document.getElementById('scoreDocClassroom');
+  const docTeacher = document.getElementById('scoreDocTeacherName');
+  const docAvgPre = document.getElementById('scoreDocAvgPre');
+  const docAvgPost = document.getElementById('scoreDocAvgPost');
+  const docAvgProgress = document.getElementById('scoreDocAvgProgress');
+  const docChart = document.getElementById('scoreDocChart');
+  if(docClassroom){
+    docClassroom.textContent = `นักเรียนระดับชั้น มัธยมศึกษาปีที่ ${level || '-'} ห้อง ${room || '-'}`;
+  }
+  if(docTeacher){
+    docTeacher.textContent = `(${currentUser?.name || '...................................'})`;
+  }
+  if(docAvgPre) docAvgPre.textContent = avgPre;
+  if(docAvgPost) docAvgPost.textContent = avgPost;
+  if(docAvgProgress) docAvgProgress.textContent = avgProgress;
+  if(docChart){
+    const preValue = count ? Math.round(totalPrePct / count) : 0;
+    const postValue = count ? Math.round(totalPostPct / count) : 0;
+    const progressValue = count ? Math.round(totalProgress / count) : 0;
+    docChart.innerHTML = [
+      { label: 'Pre-test', value: preValue, tone: 'bg-sky-500' },
+      { label: 'Post-test', value: postValue, tone: 'bg-emerald-500' },
+      { label: 'ก้าวหน้า', value: progressValue, tone: 'bg-amber-500' }
+    ].map(item => `
+      <div class="min-w-0">
+        <div class="flex items-center justify-between text-[11px] md:text-xs font-sarabun mb-1">
+          <span>${item.label}</span>
+          <span class="font-medium">${item.value}%</span>
+        </div>
+        <div class="h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div class="${item.tone} h-full rounded-full" style="width:${Math.max(0, Math.min(100, item.value))}%"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
 const baseNavigateTo = navigateTo;
 navigateTo = function(page){
   baseNavigateTo(page);
@@ -2440,6 +3474,14 @@ navigateTo = function(page){
   if(page === 'reports'){
     setupBehaviorReportSection();
     renderBehaviorReport();
+  }
+  if(page === 'scores'){
+    setupScoreFeature();
+    previewScoreImport();
+  }
+  if(page === 'score-reports'){
+    setupScoreFeature();
+    renderScoreReport();
   }
 };
 
@@ -2455,6 +3497,14 @@ refreshCurrentPage = function(){
     setupBehaviorReportSection();
     renderBehaviorReport();
   }
+  if(visible?.id === 'page-scores'){
+    setupScoreFeature();
+    previewScoreImport();
+  }
+  if(visible?.id === 'page-score-reports'){
+    setupScoreFeature();
+    renderScoreReport();
+  }
 };
 
 const baseGenerateReport = generateReport;
@@ -2464,6 +3514,165 @@ generateReport = function(){
   renderBehaviorReport();
 };
 
+let attendanceViewKey = '';
+
+function normalizeUiThaiText(){
+  document.title = 'ระบบเช็คชื่อนักเรียน การเรียนปรับพื้นฐาน - โรงเรียนชลบุรี "สุขบท"';
+
+  const setText = (selector, text)=>{
+    const el = document.querySelector(selector);
+    if(el) el.textContent = text;
+  };
+
+  setText('#loginSchoolName', 'โรงเรียนชลบุรี "สุขบท"');
+  setText('#loginSemester', 'ระบบเช็คชื่อนักเรียน การเรียนปรับพื้นฐาน ภาคเรียนที่ 1/2569');
+  setText('#sideSchoolName', 'โรงเรียนชลบุรี "สุขบท"');
+  setText('#sideSemester', '1/2569');
+  setText('#mobileSchoolName', 'โรงเรียนชลบุรี "สุขบท"');
+
+  document.querySelectorAll('#sidebarNav .nav-btn').forEach((button)=>{
+    const icon = button.querySelector('i');
+    const label = {
+      dashboard: 'แดชบอร์ด',
+      attendance: 'เช็กชื่อ',
+      students: 'นักเรียน',
+      teachers: 'ครู',
+      reports: 'รายงาน',
+      behavior: 'บันทึกพฤติกรรม',
+      scores: 'บันทึกคะแนน',
+      'score-reports': 'รายงานคะแนน'
+    }[button.dataset.nav];
+    if(label){
+      button.innerHTML = `${icon ? icon.outerHTML : ''}${label}`;
+      button.className = button.className;
+    }
+  });
+
+  setText('#page-dashboard .mb-6 h1', 'แดชบอร์ด');
+  setText('#page-dashboard .mb-6 p', 'ภาพรวมการเข้าเรียนปรับพื้นฐาน 5-13 พฤษภาคม 2569');
+  setText('#page-attendance .mb-6 h1', 'เช็กชื่อนักเรียน');
+  setText('#page-reports .mb-6 h1', 'รายงานสรุป');
+  setText('#page-reports .mb-6 p', 'เปรียบเทียบผลการเข้าเรียนตลอดช่วงปรับพื้นฐาน');
+  setText('#page-behavior .mb-6 h1', 'บันทึกพฤติกรรมนักเรียน');
+  setText('#page-behavior .mb-6 p', 'บันทึกเหตุการณ์หรือพฤติกรรมที่ครูพบเห็นระหว่างการเรียนปรับพื้นฐาน');
+  setText('#page-scores .mb-6 h1', 'บันทึกคะแนน Pre-test / Post-test');
+  setText('#page-scores .mb-6 p', 'นำเข้าคะแนนด้วย CSV รูปแบบ student_id,score');
+  setText('#page-score-reports .mb-6 h1', 'รายงานคะแนนและความก้าวหน้า');
+  setText('#page-score-reports .mb-6 p', 'สรุปคะแนน Pre-test, Post-test และร้อยละความก้าวหน้า');
+
+  const currentUserRole = document.getElementById('currentUserRole');
+  if(currentUserRole && currentUser){
+    currentUserRole.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ครูประจำวิชา';
+  }
+}
+
+function applyAttendanceButtonState(row, status){
+  if(!row) return;
+  row.querySelectorAll('.att-btn').forEach((button)=>{
+    const buttonStatus = button.dataset.status;
+    let className = 'att-btn px-3 py-1 rounded-full text-xs font-medium transition ';
+    if(buttonStatus === 'present'){
+      className += status === 'present' ? 'status-present' : 'status-none hover:bg-green-100';
+    }
+    if(buttonStatus === 'absent'){
+      className += status === 'absent' ? 'status-absent' : 'status-none hover:bg-red-100';
+    }
+    if(buttonStatus === 'leave'){
+      className += status === 'leave' ? 'status-leave' : 'status-none hover:bg-yellow-100';
+    }
+    button.className = className;
+    button.setAttribute('aria-pressed', status === buttonStatus ? 'true' : 'false');
+  });
+}
+
+loadAttendance = function(){
+  const date = document.getElementById('attDate')?.value;
+  const level = document.getElementById('attLevel')?.value;
+  const room = document.getElementById('attRoom')?.value;
+  const period = document.getElementById('attPeriod')?.value;
+  if(!date || !level || !room || !period) return;
+
+  const viewKey = `${date}__${level}__${room}__${period}`;
+  const students = getStudents()
+    .filter((student)=> student.level === level && String(student.room) === String(room))
+    .sort((a, b)=> Number(a.number) - Number(b.number));
+
+  const nextAttendance = {};
+  getAttendanceRecords()
+    .filter((record)=> record.date === date && record.period === period)
+    .forEach((record)=>{
+      nextAttendance[record.student_id] = { status: record.status, record };
+    });
+
+  if(attendanceDirty && attendanceViewKey === viewKey){
+    Object.entries(localAttendance || {}).forEach(([sid, data])=>{
+      if(data?.status && data.status !== 'none'){
+        nextAttendance[sid] = { ...(nextAttendance[sid] || {}), ...data, status: data.status };
+      }
+    });
+  }
+
+  localAttendance = nextAttendance;
+  attendanceViewKey = viewKey;
+
+  const body = document.getElementById('attendanceBody');
+  const empty = document.getElementById('attEmpty');
+  const headerRow = body?.closest('table')?.querySelector('thead tr');
+  if(headerRow){
+    headerRow.innerHTML = `
+      <th class="px-4 py-3 text-left">รหัสนักเรียน</th>
+      <th class="px-4 py-3 text-left">ชื่อ-สกุล</th>
+      <th class="px-4 py-3 text-left">เลขที่</th>
+      <th class="px-4 py-3 text-center">สถานะ</th>
+    `;
+  }
+  if(!body) return;
+
+  body.innerHTML = '';
+  if(students.length === 0){
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+
+  students.forEach((student)=>{
+    const sid = student.__backendId;
+    const status = localAttendance[sid]?.status || 'none';
+    const tr = document.createElement('tr');
+    tr.className = 'border-b';
+    tr.id = `att-row-${sid}`;
+    tr.innerHTML = `<td class="px-4 py-2 font-mono text-xs md:text-sm">${student.__backendId}</td>
+    <td class="px-4 py-2">${student.first_name} ${student.last_name}</td>
+    <td class="px-4 py-2 font-medium">${student.number}</td>
+    <td class="px-4 py-3 text-center">
+      <div class="flex justify-center gap-2">
+        <button onclick="setStatus('${sid}','present')" data-status="present" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition">มา</button>
+        <button onclick="setStatus('${sid}','absent')" data-status="absent" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition">ไม่มา</button>
+        <button onclick="setStatus('${sid}','leave')" data-status="leave" class="att-btn px-3 py-1 rounded-full text-xs font-medium transition">ลา</button>
+      </div>
+    </td>`;
+    body.appendChild(tr);
+    applyAttendanceButtonState(tr, status);
+  });
+};
+
+setStatus = function(sid, status){
+  localAttendance[sid] = {
+    ...(localAttendance[sid] || {}),
+    status
+  };
+  attendanceDirty = true;
+  applyAttendanceButtonState(document.getElementById(`att-row-${sid}`), status);
+};
+
+markAll = function(status){
+  const level = document.getElementById('attLevel')?.value;
+  const room = document.getElementById('attRoom')?.value;
+  getStudents()
+    .filter((student)=> student.level === level && String(student.room) === String(room))
+    .forEach((student)=> setStatus(student.__backendId, status));
+};
+
 // ============ INIT ICONS ============
 document.addEventListener('DOMContentLoaded',()=>{
   setupMobileUI();
@@ -2471,6 +3680,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   setupNavHeader();
   setupBehaviorFeature();
   setupBehaviorReportSection();
+  setupScoreFeature();
+  setupAttendanceExportButton();
+  normalizeUiThaiText();
   lucide.createIcons();
   applyConfig(defaultConfig);
   window.addEventListener('resize', ()=>{
