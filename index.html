@@ -6,6 +6,7 @@
   <title>ระบบเช็คชื่อนักเรียน การเรียนปรับพื้นฐาน - โรงเรียนชลบุรี "สุขบท"</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script>
     window.tailwind = window.tailwind || {};
     tailwind.config = {
@@ -713,7 +714,7 @@ if(!window.dataSdk){
             period: record.period || record.period_code,
             period_code: record.period || record.period_code,
             status: record.status,
-            checked_by: record.teacher_id || currentUser?.backendId || currentUser?.name || ''
+            checked_by: record.checked_by || record.teacher_name || record.teacher_id || currentUser?.name || currentUser?.backendId || ''
           };
       const response = await fetch(API_URL, {
         method: 'POST',
@@ -831,6 +832,29 @@ function showToast(msg, type='success'){
   t.textContent = msg;
   document.getElementById('toastContainer').appendChild(t);
   setTimeout(()=>t.remove(),3000);
+}
+
+function showAlertDialog(options = {}){
+  const config = {
+    title: options.title || '',
+    text: options.text || '',
+    icon: options.icon || 'info',
+    confirmButtonText: options.confirmButtonText || 'ตกลง',
+    cancelButtonText: options.cancelButtonText || 'ยกเลิก',
+    showCancelButton: !!options.showCancelButton
+  };
+
+  if(window.Swal?.fire){
+    return window.Swal.fire(config);
+  }
+
+  if(config.showCancelButton){
+    const isConfirmed = window.confirm([config.title, config.text].filter(Boolean).join('\n\n'));
+    return Promise.resolve({ isConfirmed });
+  }
+
+  showToast([config.title, config.text].filter(Boolean).join(' - '), config.icon === 'error' ? 'error' : config.icon === 'warning' ? 'warning' : 'success');
+  return Promise.resolve({ isConfirmed: true });
 }
 
 function getRooms(level){
@@ -1090,6 +1114,7 @@ function showMainApp(){
   setupBehaviorFeature();
   setupScoreFeature();
   setupAttendanceExportButton();
+  bindNavigationButtons();
   normalizeUiThaiText();
   lucide.createIcons();
 }
@@ -1470,7 +1495,7 @@ async function saveAttendance(){
     } else {
       // Create new
       if(allRecords.length>=999){showToast('เกินขีดจำกัด 999 รายการ','error');break;}
-      const r = await window.dataSdk.create({type:'attendance', number:'', first_name:'', last_name:'', level:'', room:'', subject:'', username:'', password:'', date, period, status:data.status, student_id:sid, teacher_id:currentUser?.backendId||'admin'});
+      const r = await window.dataSdk.create({type:'attendance', number:'', first_name:'', last_name:'', level:'', room:'', subject:'', username:'', password:'', date, period, status:data.status, student_id:sid, checked_by:currentUser?.name||'Admin', teacher_id:currentUser?.name||'Admin', teacher_name:currentUser?.name||'Admin'});
       if(r.isOk) saved++; else { errors++; console.error(r.error || 'Attendance create failed'); }
     }
   }
@@ -1902,6 +1927,7 @@ async function saveAttendance(){
   const btn = document.getElementById('saveAttBtn');
   const date = dateEl?.value;
   const period = periodEl?.value;
+  const checkerName = currentUser?.name || 'Admin';
   const entries = Object.entries(localAttendance || {}).filter(([, data]) => data?.status && data.status !== 'none');
 
   if(!date || !period){
@@ -1933,13 +1959,17 @@ async function saveAttendance(){
       }
 
       const result = await saveAttendanceRecordWithRetry(() => {
+        const checkerName = currentUser?.name || 'Admin';
         if(data.record){
           return window.dataSdk.update({
             ...data.record,
             type: 'attendance',
             status: data.status,
             period,
-            period_code: period
+            period_code: period,
+            checked_by: checkerName,
+            teacher_id: checkerName,
+            teacher_name: checkerName
           });
         }
 
@@ -1950,28 +1980,35 @@ async function saveAttendance(){
           period_code: period,
           status:data.status,
           student_id:sid,
-          teacher_id:currentUser?.backendId || 'admin'
+          checked_by: checkerName,
+          teacher_id: checkerName,
+          teacher_name: checkerName
         });
       });
 
-      if(result?.isOk){
-        saved++;
-        if(data.record){
-          data.record.status = data.status;
-          data.record.date = date;
-          data.record.period = period;
-          data.record.period_code = period;
-        } else {
-          data.record = {
-            type: 'attendance',
-            student_id: sid,
-            date,
-            period,
-            period_code: period,
-            status: data.status,
-            teacher_id: currentUser?.backendId || 'admin'
-          };
-        }
+        if(result?.isOk){
+          saved++;
+          if(data.record){
+            data.record.status = data.status;
+            data.record.date = date;
+            data.record.period = period;
+            data.record.period_code = period;
+            data.record.checked_by = currentUser?.name || 'Admin';
+            data.record.teacher_id = currentUser?.name || 'Admin';
+            data.record.teacher_name = currentUser?.name || 'Admin';
+          } else {
+            data.record = {
+              type: 'attendance',
+              student_id: sid,
+              date,
+              period,
+              period_code: period,
+              status: data.status,
+              checked_by: currentUser?.name || 'Admin',
+              teacher_id: currentUser?.name || 'Admin',
+              teacher_name: currentUser?.name || 'Admin'
+            };
+          }
       } else {
         errors.push(`นักเรียน ${sid}: ${result?.error || 'Attendance save failed'}`);
       }
@@ -1998,7 +2035,9 @@ async function saveAttendance(){
           period_code: period,
           status,
           student_id:sid,
-          teacher_id:currentUser?.backendId || 'admin'
+          checked_by: currentUser?.name || 'Admin',
+          teacher_id: currentUser?.name || 'Admin',
+          teacher_name: currentUser?.name || 'Admin'
         }), 2);
 
         if(retryResult?.isOk){
@@ -2566,6 +2605,85 @@ function getTeacherScopedStudents(){
   return students;
 }
 
+function getCurrentScoreImportContext(){
+  return {
+    date: document.getElementById('scoreDate')?.value || '',
+    testType: document.getElementById('scoreTestType')?.value || 'pre',
+    fullScore: Number(document.getElementById('scoreFullScore')?.value || 0)
+  };
+}
+
+function getExistingScoreRowsForCurrentSelection(){
+  const { date, testType } = getCurrentScoreImportContext();
+  const scopedIds = new Set(getTeacherScopedStudents().map(student => String(student.__backendId || '')));
+  const deduped = new Map();
+
+  getScoreRecords()
+    .filter(record => record.date === date && record.test_type === testType && scopedIds.has(String(record.student_id || '')))
+    .forEach(record => {
+      deduped.set(String(record.student_id || ''), record);
+    });
+
+  return [...deduped.values()];
+}
+
+function updateScoreImportStatus(){
+  const textEl = document.getElementById('scoreImportStatusText');
+  const metaEl = document.getElementById('scoreImportStatusMeta');
+  if(!textEl || !metaEl) return;
+
+  const { date, testType } = getCurrentScoreImportContext();
+  const students = getTeacherScopedStudents();
+  const uploadedRows = getExistingScoreRowsForCurrentSelection();
+  const uploadedCount = uploadedRows.length;
+  const totalCount = students.length;
+  const pendingCount = Math.max(totalCount - uploadedCount, 0);
+  const label = testType === 'post' ? 'Post-test' : 'Pre-test';
+  const dateLabel = DATE_LABELS?.[date] || date || '-';
+
+  if(!date){
+    textEl.textContent = 'เลือกวันที่สอบก่อนเพื่อตรวจสถานะการอัปโหลดคะแนน';
+    metaEl.textContent = `ประเภทคะแนน: ${label}`;
+    return;
+  }
+
+  if(totalCount === 0){
+    textEl.textContent = 'ยังไม่พบนักเรียนในขอบเขตที่ผู้ใช้คนนี้รับผิดชอบ';
+    metaEl.textContent = `วันที่ ${dateLabel} • ${label}`;
+    return;
+  }
+
+  textEl.textContent = uploadedCount > 0
+    ? `อัปโหลดแล้ว ${uploadedCount}/${totalCount} คน เหลือ ${pendingCount} คน`
+    : 'ยังไม่มีคะแนนที่อัปโหลดในชุดนี้';
+  metaEl.textContent = `วันที่ ${dateLabel} • ${label} • ห้องที่ตรวจสอบ ${totalCount} คน`;
+}
+
+function resetScoreImportForm(showNotice = true){
+  const fileEl = document.getElementById('scoreCsvFile');
+  const textEl = document.getElementById('scoreCsvText');
+  const body = document.getElementById('scorePreviewBody');
+  const empty = document.getElementById('scorePreviewEmpty');
+  const count = document.getElementById('scorePreviewCount');
+
+  if(fileEl) fileEl.value = '';
+  if(textEl) textEl.value = '';
+  if(body) body.innerHTML = '';
+  if(empty) empty.classList.remove('hidden');
+  if(count) count.textContent = '0 รายการ';
+
+  updateScoreImportStatus();
+
+  if(showNotice){
+    showAlertDialog({
+      title: 'รีเซ็ตข้อมูลแล้ว',
+      text: 'ล้างไฟล์และข้อมูลคะแนนที่เตรียมอัปโหลดเรียบร้อย',
+      icon: 'success',
+      confirmButtonText: 'ตกลง'
+    });
+  }
+}
+
 function setupScoreFeature(){
   const nav = document.getElementById('sidebarNav');
   if(nav && !document.getElementById('scoresNavBtn')){
@@ -2583,7 +2701,7 @@ function setupScoreFeature(){
     reportBtn.id = 'scoreReportsNavBtn';
     reportBtn.dataset.nav = 'score-reports';
     reportBtn.className = 'nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sarabun hover:bg-white/10 transition text-left';
-    reportBtn.setAttribute('onclick', "navigateTo('score-reports')");
+    reportBtn.setAttribute('onclick', "openScoreReportsPage()");
     reportBtn.innerHTML = '<i data-lucide="graduation-cap" class="w-4 h-4"></i> รายงานคะแนน';
 
     if(reportsNavBtn){
@@ -2725,6 +2843,21 @@ function setupScoreFeature(){
     const intro = page.querySelector('.mb-6');
     intro?.insertAdjacentHTML('beforeend', `<p id="scoreTeacherScope" class="text-sm text-royal font-sarabun mt-2"></p>`);
   }
+  if(page && !document.getElementById('scoreImportStatusCard')){
+    const intro = page.querySelector('.mb-6');
+    intro?.insertAdjacentHTML('afterend', `
+      <div id="scoreImportStatusCard" class="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="font-kanit font-semibold text-amber-900">สถานะการอัปโหลดคะแนน</p>
+            <p id="scoreImportStatusText" class="text-sm text-amber-900 font-sarabun mt-1">กำลังตรวจสอบข้อมูล...</p>
+            <p id="scoreImportStatusMeta" class="text-xs text-amber-700 font-sarabun mt-1"></p>
+          </div>
+          <i data-lucide="badge-info" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
+        </div>
+      </div>
+    `);
+  }
 
   const scoreReportPage = document.getElementById('page-score-reports');
   if(scoreReportPage && !document.getElementById('printScoreReportBtn')){
@@ -2819,6 +2952,20 @@ function setupScoreFeature(){
     exportBtn.addEventListener('click', exportScoreTemplateCsv);
     scoreActionBar.insertBefore(exportBtn, scoreActionBar.firstChild);
   }
+  if(scoreActionBar && !document.getElementById('resetScoreImportBtn')){
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.id = 'resetScoreImportBtn';
+    resetBtn.className = 'px-4 py-2 border border-rose-300 text-rose-700 rounded-lg font-sarabun text-sm hover:bg-rose-50 transition flex items-center gap-2';
+    resetBtn.innerHTML = '<i data-lucide="rotate-ccw" class="w-4 h-4"></i> รีเซ็ตข้อมูล';
+    resetBtn.addEventListener('click', () => resetScoreImportForm(true));
+    const previewBtnEl = document.getElementById('previewScoreBtn');
+    if(previewBtnEl){
+      scoreActionBar.insertBefore(resetBtn, previewBtnEl);
+    } else {
+      scoreActionBar.appendChild(resetBtn);
+    }
+  }
 
   const fileEl = document.getElementById('scoreCsvFile');
   if(fileEl && !fileEl.dataset.ready){
@@ -2832,6 +2979,16 @@ function setupScoreFeature(){
       previewScoreImport();
     });
   }
+  ['scoreDate','scoreTestType','scoreFullScore'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el && !el.dataset.scoreStatusReady){
+      el.dataset.scoreStatusReady = 'true';
+      el.addEventListener('change', updateScoreImportStatus);
+      if(id === 'scoreFullScore'){
+        el.addEventListener('input', updateScoreImportStatus);
+      }
+    }
+  });
 
   const previewBtn = document.getElementById('previewScoreBtn');
   if(previewBtn && !previewBtn.dataset.ready){
@@ -2882,6 +3039,7 @@ function setupScoreFeature(){
       roomRptEl.disabled = true;
     }
   }
+  updateScoreImportStatus();
   lucide.createIcons();
 }
 
@@ -2905,10 +3063,22 @@ function printScoreReportPdf(){
 async function saveAttendance(){
   const dateEl = document.getElementById('attDate');
   const periodEl = document.getElementById('attPeriod');
+  const levelEl = document.getElementById('attLevel');
+  const roomEl = document.getElementById('attRoom');
   const btn = document.getElementById('saveAttBtn');
   const date = dateEl?.value;
   const period = periodEl?.value;
-  const entries = Object.entries(localAttendance || {}).filter(([, data]) => data?.status && data.status !== 'none');
+  const level = levelEl?.value || '';
+  const room = roomEl?.value || '';
+  const checkerName = currentUser?.name || 'Admin';
+  const allowedStudentIds = new Set(
+    getStudents()
+      .filter((student)=> student.level === level && String(student.room) === String(room))
+      .map((student)=> String(student.__backendId || ''))
+  );
+  const entries = Object.entries(localAttendance || {}).filter(([sid, data]) =>
+    allowedStudentIds.has(String(sid || '')) && data?.status && data.status !== 'none'
+  );
 
   if(!date || !period){
     showToast('กรุณาเลือกวันที่และคาบเรียนก่อนบันทึก', 'warning');
@@ -3059,10 +3229,22 @@ function setupAttendanceExportButton(){
 async function saveAttendance(){
   const dateEl = document.getElementById('attDate');
   const periodEl = document.getElementById('attPeriod');
+  const levelEl = document.getElementById('attLevel');
+  const roomEl = document.getElementById('attRoom');
   const btn = document.getElementById('saveAttBtn');
   const date = dateEl?.value;
   const period = periodEl?.value;
-  const entries = Object.entries(localAttendance || {}).filter(([, data]) => data?.status && data.status !== 'none');
+  const level = levelEl?.value || '';
+  const room = roomEl?.value || '';
+  const checkerName = currentUser?.name || 'Admin';
+  const allowedStudentIds = new Set(
+    getStudents()
+      .filter((student)=> student.level === level && String(student.room) === String(room))
+      .map((student)=> String(student.__backendId || ''))
+  );
+  const entries = Object.entries(localAttendance || {}).filter(([sid, data]) =>
+    allowedStudentIds.has(String(sid || '')) && data?.status && data.status !== 'none'
+  );
 
   if(!date || !period){
     showToast('กรุณาเลือกวันที่และคาบเรียนก่อนบันทึก', 'warning');
@@ -3101,7 +3283,10 @@ async function saveAttendance(){
             date,
             status: data.status,
             period,
-            period_code: period
+            period_code: period,
+            checked_by: checkerName,
+            teacher_id: checkerName,
+            teacher_name: checkerName
           });
         }
 
@@ -3112,7 +3297,9 @@ async function saveAttendance(){
           period_code: period,
           status: data.status,
           student_id: sid,
-          teacher_id: currentUser?.backendId || 'admin'
+          checked_by: checkerName,
+          teacher_id: checkerName,
+          teacher_name: checkerName
         });
       });
 
@@ -3126,7 +3313,9 @@ async function saveAttendance(){
           period,
           period_code: period,
           status: data.status,
-          teacher_id: currentUser?.backendId || 'admin'
+          checked_by: checkerName,
+          teacher_id: checkerName,
+          teacher_name: checkerName
         };
       } else {
         errors.push(`${sid}: ${result?.error || 'Attendance save failed'}`);
@@ -3466,6 +3655,12 @@ function renderScoreReport(){
 
 const baseNavigateTo = navigateTo;
 navigateTo = function(page){
+  if(page === 'behavior'){
+    setupBehaviorFeature();
+  }
+  if(page === 'scores' || page === 'score-reports'){
+    setupScoreFeature();
+  }
   baseNavigateTo(page);
   if(page === 'behavior'){
     setupBehaviorFeature();
@@ -3564,6 +3759,367 @@ function normalizeUiThaiText(){
   if(currentUserRole && currentUser){
     currentUserRole.textContent = currentUser.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ครูประจำวิชา';
   }
+
+  const scoreReportsNavBtn = document.getElementById('scoreReportsNavBtn');
+  if(scoreReportsNavBtn){
+    scoreReportsNavBtn.setAttribute('onclick', 'openScoreReportsPage()');
+  }
+  const scoresNavBtn = document.getElementById('scoresNavBtn');
+  if(scoresNavBtn){
+    scoresNavBtn.setAttribute('onclick', 'openScoresPage()');
+  }
+  const reportsNavBtn = document.querySelector('#sidebarNav [data-nav="reports"]');
+  if(reportsNavBtn){
+    reportsNavBtn.setAttribute('onclick', 'openReportsPage()');
+  }
+  const behaviorNavBtn = document.getElementById('behaviorNavBtn');
+  if(behaviorNavBtn){
+    behaviorNavBtn.setAttribute('onclick', 'openBehaviorPage()');
+  }
+}
+
+function openScoreReportsPage(){
+  try{
+    setupScoreFeature();
+    const page = document.getElementById('page-score-reports');
+    if(!page){
+      showToast('ไม่สามารถเปิดหน้ารายงานคะแนนได้', 'error');
+      return;
+    }
+    document.querySelectorAll('.page-content').forEach((section)=> section.classList.add('hidden'));
+    page.classList.remove('hidden');
+    page.classList.add('fade-in');
+    document.querySelectorAll('.nav-btn').forEach((button)=>{
+      button.classList.toggle('bg-white/20', button.dataset.nav === 'score-reports');
+    });
+    if(window.innerWidth <= 1024) closeSidebar();
+    window.setTimeout(()=>{
+      try{
+        setupScoreFeature();
+        renderScoreReport();
+      }catch(renderError){
+        console.error('openScoreReportsPage render failed', renderError);
+        showToast(`เปิดรายงานคะแนนไม่สำเร็จ: ${renderError.message || renderError}`, 'error');
+      }
+    }, 0);
+  }catch(error){
+    console.error('openScoreReportsPage failed', error);
+    showToast(`เปิดรายงานคะแนนไม่สำเร็จ: ${error.message || error}`, 'error');
+  }
+}
+
+function openScoresPage(){
+  try{
+    setupScoreFeature();
+    const page = document.getElementById('page-scores');
+    if(!page){
+      showToast('ไม่สามารถเปิดหน้าบันทึกคะแนนได้', 'error');
+      return;
+    }
+    document.querySelectorAll('.page-content').forEach((section)=> section.classList.add('hidden'));
+    page.classList.remove('hidden');
+    page.classList.add('fade-in');
+    document.querySelectorAll('.nav-btn').forEach((button)=>{
+      button.classList.toggle('bg-white/20', button.dataset.nav === 'scores');
+    });
+    if(window.innerWidth <= 1024) closeSidebar();
+    window.setTimeout(()=>{
+      try{
+        setupScoreFeature();
+        previewScoreImport();
+      }catch(renderError){
+        console.error('openScoresPage render failed', renderError);
+        showToast(`เปิดหน้าบันทึกคะแนนไม่สำเร็จ: ${renderError.message || renderError}`, 'error');
+      }
+    }, 0);
+  }catch(error){
+    console.error('openScoresPage failed', error);
+    showToast(`เปิดหน้าบันทึกคะแนนไม่สำเร็จ: ${error.message || error}`, 'error');
+  }
+}
+
+async function openReportsPage(){
+  try{
+    setupBehaviorReportSection();
+    const page = document.getElementById('page-reports');
+    if(!page){
+      showToast('ไม่สามารถเปิดหน้ารายงานได้', 'error');
+      return;
+    }
+    document.querySelectorAll('.page-content').forEach((section)=> section.classList.add('hidden'));
+    page.classList.remove('hidden');
+    page.classList.add('fade-in');
+    document.querySelectorAll('.nav-btn').forEach((button)=>{
+      button.classList.toggle('bg-white/20', button.dataset.nav === 'reports');
+    });
+    if(window.innerWidth <= 1024) closeSidebar();
+    window.setTimeout(async()=>{
+      try{
+        try{
+          await window.dataSdk.refresh?.();
+        }catch(refreshError){
+          console.warn('Reports refresh failed, using cached data', refreshError);
+          showToast('อัปเดตข้อมูลล่าสุดไม่สำเร็จ ระบบจะแสดงข้อมูลล่าสุดที่มีอยู่', 'warning');
+        }
+        setupBehaviorReportSection();
+        generateReport();
+        renderBehaviorReport();
+      }catch(renderError){
+        console.error('openReportsPage render failed', renderError);
+        showToast(`เปิดหน้ารายงานไม่สำเร็จ: ${renderError.message || renderError}`, 'error');
+      }
+    }, 0);
+  }catch(error){
+    console.error('openReportsPage failed', error);
+    showToast(`เปิดหน้ารายงานไม่สำเร็จ: ${error.message || error}`, 'error');
+  }
+}
+
+function openBehaviorPage(){
+  try{
+    setupBehaviorFeature();
+    showPageShell('behavior');
+    window.setTimeout(()=>{
+      try{
+        setupBehaviorFeature();
+        renderBehaviorHistory();
+      }catch(renderError){
+        console.error('openBehaviorPage render failed', renderError);
+        showToast(`เปิดหน้าบันทึกพฤติกรรมไม่สำเร็จ: ${renderError.message || renderError}`, 'error');
+      }
+    }, 0);
+  }catch(error){
+    console.error('openBehaviorPage failed', error);
+    showToast(`เปิดหน้าบันทึกพฤติกรรมไม่สำเร็จ: ${error.message || error}`, 'error');
+  }
+}
+
+renderBehaviorHistory = function(){
+  const historyEl = document.getElementById('behaviorHistory');
+  const emptyEl = document.getElementById('behaviorEmpty');
+  const countEl = document.getElementById('behaviorCountLabel');
+  if(!historyEl || !emptyEl || !countEl) return;
+
+  const date = document.getElementById('behaviorDate')?.value || '';
+  const level = document.getElementById('behaviorLevel')?.value || '';
+  const room = document.getElementById('behaviorRoom')?.value || '';
+  const studentId = document.getElementById('behaviorStudent')?.value || '';
+  const studentMap = new Map(getStudents().map((student)=> [student.__backendId, student]));
+
+  const records = getBehaviorRecords()
+    .filter((record)=> !date || record.date === date)
+    .map((record)=>{
+      const student = studentMap.get(record.student_id);
+      const displayName = student
+        ? `${student.number} ${student.first_name} ${student.last_name}`.trim()
+        : `${record.number || '-'} ${record.student_name || record.student_id}`.trim();
+      const displayLevel = student?.level || record.level || '';
+      const displayRoom = student?.room || record.room || '';
+      return {
+        record,
+        displayName,
+        displayLevel,
+        displayRoom,
+        sortNumber: Number(student?.number || record.number || 9999)
+      };
+    })
+    .filter((item)=> !level || item.displayLevel === level)
+    .filter((item)=> !room || String(item.displayRoom) === String(room))
+    .filter((item)=> !studentId || item.record.student_id === studentId)
+    .sort((a, b)=>{
+      if(a.record.date !== b.record.date) return b.record.date.localeCompare(a.record.date);
+      return a.sortNumber - b.sortNumber || a.displayName.localeCompare(b.displayName, 'th');
+    })
+    .slice(0, 30);
+
+  countEl.textContent = `${records.length} รายการ`;
+  historyEl.innerHTML = '';
+
+  if(records.length === 0){
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+
+  emptyEl.classList.add('hidden');
+  records.forEach(({ record, displayName, displayLevel, displayRoom })=>{
+    historyEl.innerHTML += `
+      <div class="rounded-xl border border-slate-200 p-4">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <p class="font-kanit font-medium text-navy">${escapeHtml(displayName)}</p>
+            <p class="text-xs text-gray-400 font-sarabun">${escapeHtml((DATE_LABELS[record.date] || record.date) + ' - ' + (displayLevel && displayRoom ? `${displayLevel}/${displayRoom}` : '-'))}</p>
+          </div>
+          <span class="text-xs text-slate-500 font-sarabun">${escapeHtml(record.teacher || '-')}</span>
+        </div>
+        <p class="text-sm text-slate-700 font-sarabun whitespace-pre-wrap">${escapeHtml(record.details || '-')}</p>
+      </div>
+    `;
+  });
+};
+
+previewScoreImport = function(){
+  const body = document.getElementById('scorePreviewBody');
+  const empty = document.getElementById('scorePreviewEmpty');
+  const count = document.getElementById('scorePreviewCount');
+  if(!body || !empty || !count) return [];
+
+  const rows = parseScoreCsv(document.getElementById('scoreCsvText')?.value || '');
+  const studentMap = new Map(getTeacherScopedStudents().map(student => [student.__backendId, student]));
+  const existingMap = new Map(getExistingScoreRowsForCurrentSelection().map(record => [String(record.student_id || ''), record]));
+  const tableHead = body.closest('table')?.querySelector('thead tr');
+  if(tableHead && !tableHead.querySelector('[data-score-preview-status]')){
+    tableHead.insertAdjacentHTML('beforeend', '<th data-score-preview-status class="px-3 py-2 text-center">สถานะ</th>');
+  }
+
+  body.innerHTML = '';
+  count.textContent = `${rows.length} รายการ`;
+  if(rows.length === 0){
+    empty.classList.remove('hidden');
+    return [];
+  }
+
+  empty.classList.add('hidden');
+  let duplicateCount = 0;
+  rows.slice(0, 50).forEach((row)=>{
+    const student = studentMap.get(row.student_id);
+    const isExisting = existingMap.has(String(row.student_id || ''));
+    if(isExisting) duplicateCount++;
+    const name = student ? `${student.number} ${student.first_name} ${student.last_name}`.trim() : 'ไม่พบในห้องที่รับผิดชอบ';
+    const rowClass = !student ? 'bg-red-50' : isExisting ? 'bg-amber-50' : '';
+    const statusText = !student ? 'ไม่พบในห้อง' : isExisting ? 'อัปแล้ว/อัปทับ' : 'ใหม่';
+    const statusClass = !student ? 'text-red-600' : isExisting ? 'text-amber-700' : 'text-emerald-600';
+    body.innerHTML += `<tr class="border-b ${rowClass}"><td class="px-3 py-2">${escapeHtml(row.student_id)}</td><td class="px-3 py-2">${escapeHtml(name)}</td><td class="px-3 py-2 text-center font-medium">${row.score}</td><td class="px-3 py-2 text-center font-medium ${statusClass}">${statusText}</td></tr>`;
+  });
+
+  if(duplicateCount > 0){
+    count.textContent = `${rows.length} รายการ • ซ้ำเดิม ${duplicateCount} คน`;
+  }
+
+  return rows.filter((row)=> studentMap.has(row.student_id));
+};
+
+saveScoreImport = async function(){
+  const rows = previewScoreImport();
+  const testType = document.getElementById('scoreTestType')?.value || 'pre';
+  const fullScore = Number(document.getElementById('scoreFullScore')?.value || 0);
+  const date = document.getElementById('scoreDate')?.value || '';
+  const btn = document.getElementById('saveScoreBtn');
+
+  if(rows.length === 0){
+    await showAlertDialog({
+      title: 'ยังไม่มีข้อมูลสำหรับอัปโหลด',
+      text: 'กรุณาวางข้อมูล student_id,score หรือเลือกไฟล์ CSV ก่อน',
+      icon: 'warning',
+      confirmButtonText: 'รับทราบ'
+    });
+    return;
+  }
+
+  if(!fullScore){
+    await showAlertDialog({
+      title: 'กรอกคะแนนเต็มก่อน',
+      text: 'ระบบต้องใช้คะแนนเต็มเพื่อคำนวณรายงานร้อยละและความก้าวหน้า',
+      icon: 'warning',
+      confirmButtonText: 'ตกลง'
+    });
+    return;
+  }
+
+  const existingMap = new Map(getExistingScoreRowsForCurrentSelection().map(record => [String(record.student_id || ''), record]));
+  const duplicateCount = rows.filter((row)=> existingMap.has(String(row.student_id || ''))).length;
+  if(duplicateCount > 0){
+    const confirmed = await showAlertDialog({
+      title: 'พบข้อมูลคะแนนเดิม',
+      text: `ชุดนี้มีคะแนนเดิม ${duplicateCount} คน ระบบจะอัปเดตทับคะแนนเดิม ต้องการดำเนินการต่อหรือไม่`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'อัปเดตทับ',
+      cancelButtonText: 'ยกเลิก'
+    });
+    if(!confirmed?.isConfirmed){
+      return;
+    }
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังอัปโหลด...';
+    lucide.createIcons();
+  }
+
+  try{
+    let saved = 0;
+    const errors = [];
+
+    for(let index = 0; index < rows.length; index++){
+      const row = rows[index];
+      if(btn){
+        btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> กำลังอัปโหลด ${index + 1}/${rows.length}`;
+        lucide.createIcons();
+      }
+
+      const result = await window.dataSdk.create({
+        type: 'score',
+        student_id: row.student_id,
+        test_type: testType,
+        score: row.score,
+        full_score: fullScore,
+        date,
+        teacher: currentUser?.name || 'Admin'
+      });
+
+      if(result?.isOk){
+        saved++;
+      } else {
+        errors.push(row.student_id);
+      }
+    }
+
+    await window.dataSdk.refresh?.();
+    updateScoreReportFilters();
+    renderScoreReport();
+    updateScoreImportStatus();
+
+    if(errors.length){
+      await showAlertDialog({
+        title: 'อัปโหลดคะแนนไม่ครบ',
+        text: `บันทึกได้ ${saved}/${rows.length} รายการ กรุณาตรวจสอบข้อมูลที่เหลืออีกครั้ง`,
+        icon: 'warning',
+        confirmButtonText: 'รับทราบ'
+      });
+    } else {
+      await showAlertDialog({
+        title: 'อัปโหลดคะแนนสำเร็จ',
+        text: `บันทึกคะแนน ${saved} รายการเรียบร้อยแล้ว`,
+        icon: 'success',
+        confirmButtonText: 'ตกลง'
+      });
+    }
+  }catch(error){
+    console.error('saveScoreImport failed', error);
+    await showAlertDialog({
+      title: 'อัปโหลดคะแนนไม่สำเร็จ',
+      text: error.message || String(error),
+      icon: 'error',
+      confirmButtonText: 'ปิด'
+    });
+  }finally{
+    if(btn){
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="upload" class="w-4 h-4"></i> อัปโหลดคะแนน';
+      lucide.createIcons();
+    }
+  }
+};
+
+function bindNavigationButtons(){
+  document.querySelectorAll('#sidebarNav .nav-btn').forEach((button)=>{
+    const page = button.dataset.nav;
+    if(!page) return;
+    button.onclick = ()=>{
+      navigateTo(page);
+    };
+  });
 }
 
 function applyAttendanceButtonState(row, status){
@@ -3596,17 +4152,24 @@ loadAttendance = function(){
   const students = getStudents()
     .filter((student)=> student.level === level && String(student.room) === String(room))
     .sort((a, b)=> Number(a.number) - Number(b.number));
+  const allowedStudentIds = new Set(students.map((student)=> String(student.__backendId || '')));
 
   const nextAttendance = {};
+  students.forEach((student)=>{
+    nextAttendance[student.__backendId] = {
+      status: 'present',
+      record: null
+    };
+  });
   getAttendanceRecords()
-    .filter((record)=> record.date === date && record.period === period)
+    .filter((record)=> record.date === date && record.period === period && allowedStudentIds.has(String(record.student_id || '')))
     .forEach((record)=>{
       nextAttendance[record.student_id] = { status: record.status, record };
     });
 
   if(attendanceDirty && attendanceViewKey === viewKey){
     Object.entries(localAttendance || {}).forEach(([sid, data])=>{
-      if(data?.status && data.status !== 'none'){
+      if(allowedStudentIds.has(String(sid || '')) && data?.status && data.status !== 'none'){
         nextAttendance[sid] = { ...(nextAttendance[sid] || {}), ...data, status: data.status };
       }
     });
@@ -3637,7 +4200,7 @@ loadAttendance = function(){
 
   students.forEach((student)=>{
     const sid = student.__backendId;
-    const status = localAttendance[sid]?.status || 'none';
+    const status = localAttendance[sid]?.status || 'present';
     const tr = document.createElement('tr');
     tr.className = 'border-b';
     tr.id = `att-row-${sid}`;
@@ -3673,6 +4236,186 @@ markAll = function(status){
     .forEach((student)=> setStatus(student.__backendId, status));
 };
 
+function showPageShell(page){
+  const target = document.getElementById(`page-${page}`);
+  if(!target){
+    throw new Error(`ไม่พบหน้า ${page}`);
+  }
+  document.querySelectorAll('.page-content').forEach((section)=>{
+    section.classList.add('hidden');
+    section.classList.remove('fade-in');
+  });
+  target.classList.remove('hidden');
+  target.classList.add('fade-in');
+  document.querySelectorAll('.nav-btn').forEach((button)=>{
+    button.classList.toggle('bg-white/20', button.dataset.nav === page);
+  });
+  if(page !== 'attendance'){
+    attendanceDirty = false;
+  }
+  if(window.innerWidth <= 1024){
+    closeSidebar();
+  }
+  return target;
+}
+
+function getLatestAttendanceDate(attRecs){
+  const dates = [...new Set((attRecs || []).map((record)=> String(record.date || '').trim()).filter(Boolean))]
+    .sort((a, b)=> a.localeCompare(b));
+  return dates.length ? dates[dates.length - 1] : (VALID_DATES[VALID_DATES.length - 1] || VALID_DATES[0] || '');
+}
+
+function getLatestPeriodSnapshotForDate(attRecs, targetDate){
+  const recordsForDate = (attRecs || []).filter((record)=> record.date === targetDate);
+  if(recordsForDate.length === 0){
+    return { date: targetDate, period: '', records: [] };
+  }
+  const periodsForDate = [...new Set(recordsForDate.map((record)=> record.period))]
+    .sort((a, b)=> getPeriodSortIndex(b) - getPeriodSortIndex(a));
+  const latestPeriod = periodsForDate[0] || '';
+  return {
+    date: targetDate,
+    period: latestPeriod,
+    records: recordsForDate.filter((record)=> record.period === latestPeriod)
+  };
+}
+
+renderDashboard = function(){
+  const students = getStudents();
+  const attRecs = getAttendanceRecords();
+  const snapshotDate = getLatestAttendanceDate(attRecs);
+  const latestSnapshot = getLatestPeriodSnapshotForDate(attRecs, snapshotDate);
+  const latestRecords = latestSnapshot.records;
+  const dayRecords = attRecs.filter((record)=> record.date === snapshotDate);
+
+  const totalStudentsEl = document.getElementById('statTotalStudents');
+  const presentEl = document.getElementById('statPresent');
+  const absentEl = document.getElementById('statAbsent');
+  const leaveEl = document.getElementById('statLeave');
+  if(totalStudentsEl) totalStudentsEl.textContent = students.length;
+  if(presentEl) presentEl.textContent = latestRecords.filter((record)=> record.status === 'present').length;
+  if(absentEl) absentEl.textContent = latestRecords.filter((record)=> record.status === 'absent').length;
+  if(leaveEl) leaveEl.textContent = latestRecords.filter((record)=> record.status === 'leave').length;
+
+  drawPie(
+    latestRecords.filter((record)=> record.status === 'present').length,
+    latestRecords.filter((record)=> record.status === 'absent').length,
+    latestRecords.filter((record)=> record.status === 'leave').length
+  );
+
+  const pieCard = document.getElementById('pieChart')?.closest('.bg-white.rounded-xl.p-6.shadow-sm');
+  const barCard = document.getElementById('barChart')?.closest('.bg-white.rounded-xl.p-6.shadow-sm');
+  const roomCard = document.getElementById('roomSummaryBody')?.closest('.bg-white.rounded-xl.p-6.shadow-sm');
+  if(pieCard && !document.getElementById('dashboardLatestPeriodHint')){
+    pieCard.insertAdjacentHTML('afterbegin', '<p id="dashboardLatestPeriodHint" class="text-xs text-slate-500 font-sarabun mb-2"></p>');
+  }
+  if(barCard && !document.getElementById('dashboardDailyHint')){
+    barCard.insertAdjacentHTML('afterbegin', '<p id="dashboardDailyHint" class="text-xs text-slate-500 font-sarabun mb-2"></p>');
+  }
+  if(roomCard && !document.getElementById('dashboardRoomSummaryHint')){
+    roomCard.insertAdjacentHTML('afterbegin', '<p id="dashboardRoomSummaryHint" class="text-xs text-slate-500 font-sarabun mb-2"></p>');
+  }
+  const latestHint = document.getElementById('dashboardLatestPeriodHint');
+  const dailyHint = document.getElementById('dashboardDailyHint');
+  const roomHint = document.getElementById('dashboardRoomSummaryHint');
+  if(latestHint){
+    latestHint.textContent = snapshotDate
+      ? `สรุปคาบล่าสุดของวันที่ ${DATE_LABELS[snapshotDate] || snapshotDate}${latestSnapshot.period ? ` • ${getPeriodLabel(latestSnapshot.period)}` : ''}`
+      : 'ยังไม่มีข้อมูลการเช็กชื่อ';
+  }
+  if(dailyHint){
+    dailyHint.textContent = snapshotDate
+      ? 'สถิติรายวันจากคาบที่เช็กจริงของแต่ละวัน'
+      : 'ยังไม่มีข้อมูลการเช็กชื่อ';
+  }
+  if(roomHint){
+    roomHint.textContent = snapshotDate
+      ? `สรุปทั้งวันของวันที่ ${DATE_LABELS[snapshotDate] || snapshotDate} จากทุกคาบที่มีการเช็กจริง`
+      : 'ยังไม่มีข้อมูลการเช็กชื่อ';
+  }
+
+  const roomHead = document.getElementById('roomSummaryBody')?.closest('table')?.querySelector('thead tr');
+  if(roomHead){
+    roomHead.innerHTML = `
+      <th class="px-4 py-2 text-left">ห้อง</th>
+      <th class="px-4 py-2 text-center">นร.</th>
+      <th class="px-4 py-2 text-center">รายการที่เช็ก</th>
+      <th class="px-4 py-2 text-center text-green-600">มา</th>
+      <th class="px-4 py-2 text-center text-red-600">ขาด</th>
+      <th class="px-4 py-2 text-center text-yellow-600">ลา</th>
+      <th class="px-4 py-2 text-center">%มา</th>
+    `;
+  }
+
+  const barEl = document.getElementById('barChart');
+  if(barEl){
+    barEl.innerHTML = '';
+    VALID_DATES.forEach((date)=>{
+      const dateRecords = attRecs.filter((record)=> record.date === date);
+      const present = dateRecords.filter((record)=> record.status === 'present').length;
+      const total = dateRecords.length || 1;
+      const pct = dateRecords.length ? Math.round((present / total) * 100) : 0;
+      barEl.innerHTML += `<div class="flex items-center gap-3"><span class="w-16 text-xs font-sarabun text-gray-600">${DATE_LABELS[date] || date}</span><div class="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden"><div class="bg-green-500 h-full rounded-full flex items-center justify-end pr-2 transition-all" style="width:${pct}%"><span class="text-xs text-white font-medium">${pct}%</span></div></div></div>`;
+    });
+  }
+
+  const roomBody = document.getElementById('roomSummaryBody');
+  if(roomBody){
+    roomBody.innerHTML = '';
+    ['ม.1', 'ม.4'].forEach((level)=>{
+      getRooms(level).forEach((room)=>{
+        const roomStudents = students.filter((student)=> student.level === level && String(student.room) === String(room));
+        if(roomStudents.length === 0) return;
+        const roomStudentIds = new Set(roomStudents.map((student)=> String(student.__backendId || '')));
+        const roomRecords = dayRecords.filter((record)=> roomStudentIds.has(String(record.student_id || '')));
+        const present = roomRecords.filter((record)=> record.status === 'present').length;
+        const absent = roomRecords.filter((record)=> record.status === 'absent').length;
+        const leave = roomRecords.filter((record)=> record.status === 'leave').length;
+        const checkedCount = roomRecords.length;
+        const pct = checkedCount ? Math.round((present / checkedCount) * 100) : 0;
+        roomBody.innerHTML += `<tr class="border-b hover:bg-gray-50"><td class="px-4 py-2">${level}/${room}</td><td class="px-4 py-2 text-center">${roomStudents.length}</td><td class="px-4 py-2 text-center">${checkedCount}</td><td class="px-4 py-2 text-center text-green-600 font-medium">${present}</td><td class="px-4 py-2 text-center text-red-600 font-medium">${absent}</td><td class="px-4 py-2 text-center text-yellow-600 font-medium">${leave}</td><td class="px-4 py-2 text-center"><div class="flex items-center justify-center gap-2"><div class="w-16 bg-gray-200 rounded-full h-2"><div class="bg-green-500 h-2 rounded-full" style="width:${pct}%"></div></div><span class="text-xs">${pct}%</span></div></td></tr>`;
+      });
+    });
+  }
+};
+
+function openDashboardPage(){
+  showPageShell('dashboard');
+  renderDashboard();
+}
+
+function openAttendancePage(){
+  showPageShell('attendance');
+  loadAttendance();
+}
+
+function openStudentsPage(){
+  showPageShell('students');
+  renderStudentList();
+}
+
+function openTeachersPage(){
+  showPageShell('teachers');
+  renderTeacherList();
+}
+
+navigateTo = function(page){
+  try{
+    if(page === 'dashboard') return openDashboardPage();
+    if(page === 'attendance') return openAttendancePage();
+    if(page === 'students') return openStudentsPage();
+    if(page === 'teachers') return openTeachersPage();
+    if(page === 'reports') return openReportsPage();
+    if(page === 'behavior') return openBehaviorPage();
+    if(page === 'scores') return openScoresPage();
+    if(page === 'score-reports') return openScoreReportsPage();
+    throw new Error(`ไม่รองรับเมนู ${page}`);
+  }catch(error){
+    console.error('navigateTo failed', page, error);
+    showToast(`เปิดเมนูไม่สำเร็จ: ${error.message || error}`, 'error');
+  }
+};
+
 // ============ INIT ICONS ============
 document.addEventListener('DOMContentLoaded',()=>{
   setupMobileUI();
@@ -3682,6 +4425,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   setupBehaviorReportSection();
   setupScoreFeature();
   setupAttendanceExportButton();
+  bindNavigationButtons();
   normalizeUiThaiText();
   lucide.createIcons();
   applyConfig(defaultConfig);
